@@ -8,7 +8,9 @@ $ventasHoy = db_one("SELECT COUNT(*) AS cantidad, COALESCE(SUM(total), 0) AS mon
 $pedidosActivos = db_val("SELECT COUNT(*) FROM ventas WHERE estado NOT IN ('pagado', 'anulado')");
 $mesasOcupadas = db_val("SELECT COUNT(DISTINCT id_mesa) FROM ventas WHERE tipo = 'mesa' AND estado NOT IN ('pagado', 'anulado')");
 $mesasTotal = db_val('SELECT COUNT(*) FROM mesas WHERE estado = 1');
-$stockBajo = db_val('SELECT COUNT(*) FROM producto WHERE estado = 1 AND existencia <= 10');
+$stockBajo = db_val('SELECT COUNT(*) FROM producto WHERE estado = 1 AND controla_stock = 1 AND existencia <= 10');
+$enCocina = db_val("SELECT COUNT(*) FROM ventas WHERE estado <> 'anulado' AND estado_cocina IN ('pendiente', 'preparando')");
+$caja = caja_abierta();
 
 $tarjetas = [
     ['lista_ventas.php', 'ventas', 'bg-danger', 'Ventas de hoy', 'S/ ' . dinero($ventasHoy['monto']) . ' <small>(' . (int)$ventasHoy['cantidad'] . ')</small>', 'fas fa-dollar-sign'],
@@ -16,6 +18,8 @@ $tarjetas = [
     ['mesas.php', 'mesas', 'bg-info', 'Mesas ocupadas', (int)$mesasOcupadas . ' / ' . (int)$mesasTotal, 'fas fa-chair'],
     ['productos.php', 'productos', 'bg-primary', 'Productos (stock bajo: ' . (int)$stockBajo . ')', (int)$totalP, 'fas fa-hamburger'],
     ['clientes.php', 'clientes', 'bg-success', 'Clientes', (int)$totalC, 'fas fa-users'],
+    ['cocina.php', 'cocina', 'bg-dark', 'En cocina', (int)$enCocina, 'fas fa-fire'],
+    ['caja.php', 'caja', $caja ? 'bg-success' : 'bg-secondary', 'Caja', $caja ? 'Abierta' : 'Cerrada', 'fas fa-cash-register'],
     ['usuarios.php', 'usuarios', 'bg-secondary', 'Usuarios', (int)$totalU, 'fas fa-user'],
 ];
 include_once "includes/header.php";
@@ -30,7 +34,7 @@ include_once "includes/header.php";
 <div class="row">
     <?php foreach ($tarjetas as [$url, $permiso, $color, $titulo, $valor, $icono]) {
         if (!tiene_permiso($permiso)) continue; ?>
-        <a class="col-xl-4 col-md-6 mb-4 text-decoration-none" href="<?php echo $url; ?>">
+        <a class="col-xl-3 col-md-4 col-6 mb-4 text-decoration-none" href="<?php echo $url; ?>">
             <div class="card shadow h-100 py-2 <?php echo $color; ?>">
                 <div class="card-body">
                     <div class="row no-gutters align-items-center">

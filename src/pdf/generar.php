@@ -63,7 +63,7 @@ if ($pedido['tipo'] === 'delivery') {
 } elseif (!empty($pedido['cliente_telefono']) && (int)$pedido['id_cliente'] !== 1) {
     $fila('Teléfono:', $pedido['cliente_telefono']);
 }
-$fila('Atendió:', $pedido['vendedor']);
+$fila('Atendió:', $pedido['vendedor'] ?? ($pedido['origen'] === 'web' ? 'Carta web' : ''));
 $fila('Pago:', (METODOS_PAGO[$pedido['metodo_pago']] ?? $pedido['metodo_pago']) . ' - ' . (ESTADOS_PEDIDO[$pedido['estado']][0] ?? $pedido['estado']));
 if ($pedido['nota']) {
     $fila('Nota:', $pedido['nota']);

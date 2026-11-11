@@ -38,6 +38,83 @@ if (isset($_GET['pro'])) {
     responder($datos);
 }
 
+if (isset($_GET['grilla'])) {
+    // Productos para la grilla táctil de Nueva venta
+    require_permiso('nueva_venta');
+    $activas = array_flip(array_map('intval', array_column(db_all('SELECT id FROM categorias WHERE estado = 1'), 'id')));
+    $datos = [];
+    foreach (db_all(
+        'SELECT p.codproducto, p.codigo, p.descripcion, p.precio, p.existencia, p.controla_stock, p.imagen, p.id_categoria
+         FROM producto p LEFT JOIN categorias c ON c.id = p.id_categoria
+         WHERE p.estado = 1
+         ORDER BY COALESCE(c.orden, 999), p.descripcion'
+    ) as $row) {
+        $datos[] = [
+            'id' => (int)$row['codproducto'],
+            'codigo' => $row['codigo'],
+            'nombre' => $row['descripcion'],
+            'precio' => dinero($row['precio']),
+            'stock' => (int)$row['controla_stock'] === 1 ? (int)$row['existencia'] : null,
+            'imagen' => imagen_producto($row['imagen']) ? '../' . imagen_producto($row['imagen']) : null,
+            'categoria' => $row['id_categoria'] !== null && isset($activas[(int)$row['id_categoria']]) ? (int)$row['id_categoria'] : 0,
+        ];
+    }
+    responder($datos);
+}
+
+if (isset($_GET['sondeo'])) {
+    // Aviso de pedidos nuevos (pantallas de Pedidos y Cocina)
+    require_permiso('pedidos', 'cocina', 'mesas', 'repartidor');
+    responder([
+        'ultimo' => (int)db_val('SELECT COALESCE(MAX(id), 0) FROM ventas'),
+        'web_pendientes' => (int)db_val("SELECT COUNT(*) FROM ventas WHERE origen = 'web' AND estado = 'pendiente'"),
+        'cocina' => (int)db_val("SELECT COUNT(*) FROM ventas WHERE estado <> 'anulado' AND estado_cocina = 'pendiente'"),
+        'cambio' => (string)db_val(
+            "SELECT CONCAT(COUNT(*), '-', COALESCE(SUM(id * CRC32(CONCAT(estado, ':', estado_cocina, ':', COALESCE(id_repartidor, 0)))), 0),
+                           '-', (SELECT COALESCE(MAX(id), 0) FROM detalle_venta))
+             FROM ventas WHERE estado NOT IN ('pagado', 'anulado') OR estado_cocina IN ('pendiente', 'preparando')"
+        ),
+    ]);
+}
+
+if (isset($_GET['cocina'])) {
+    // Pedidos a preparar, sin precios. Solo productos que van a cocina.
+    require_permiso('cocina', 'pedidos');
+    $lista = [];
+    foreach (db_all("SELECT id FROM ventas WHERE estado <> 'anulado' AND estado_cocina IN ('pendiente', 'preparando') ORDER BY fecha ASC") as $r) {
+        $p = obtener_pedido((int)$r['id']);
+        $items = [];
+        foreach (db_all(
+            'SELECT d.cantidad, d.ronda, p.descripcion FROM detalle_venta d
+             INNER JOIN producto p ON p.codproducto = d.id_producto
+             LEFT JOIN categorias c ON c.id = p.id_categoria
+             WHERE d.id_venta = ? AND COALESCE(c.cocina, 1) = 1 ORDER BY d.ronda, d.id',
+            [(int)$p['id']]
+        ) as $it) {
+            $items[] = [
+                'cantidad' => (int)$it['cantidad'],
+                'nombre' => $it['descripcion'],
+                'nuevo' => $p['ultima_ronda'] > 1 && (int)$it['ronda'] === $p['ultima_ronda'],
+                'anterior' => $p['ultima_ronda'] > 1 && (int)$it['ronda'] < $p['ultima_ronda'],
+            ];
+        }
+        $lista[] = [
+            'id' => (int)$p['id'],
+            'tipo' => $p['tipo'],
+            'tipo_texto' => TIPOS_PEDIDO[$p['tipo']] ?? $p['tipo'],
+            'mesa' => $p['mesa'],
+            'cliente' => (int)$p['id_cliente'] === 1 ? '' : $p['cliente'],
+            'origen' => $p['origen'],
+            'estado' => $p['estado_cocina'],
+            'nota' => $p['nota'],
+            'ronda' => $p['ultima_ronda'],
+            'minutos' => (int)floor((time() - strtotime($p['fecha'])) / 60),
+            'items' => $items,
+        ];
+    }
+    responder($lista);
+}
+
 if (isset($_GET['detalle'])) {
     require_permiso('nueva_venta');
     $filas = db_all(
@@ -71,13 +148,13 @@ if ($accion === 'agregar') {
     require_permiso('nueva_venta');
     $idProducto = entero($_POST['id'] ?? 0);
     $cant = max(1, entero($_POST['cant'] ?? 1));
-    $producto = db_one('SELECT codproducto, precio, existencia, descripcion FROM producto WHERE codproducto = ? AND estado = 1', [$idProducto]);
+    $producto = db_one('SELECT codproducto, precio, existencia, descripcion, controla_stock FROM producto WHERE codproducto = ? AND estado = 1', [$idProducto]);
     if (!$producto) {
         responder(['ok' => false, 'msg' => 'Producto no encontrado']);
     }
     $enCarrito = db_one('SELECT id, cantidad FROM detalle_temp WHERE id_producto = ? AND id_usuario = ?', [$idProducto, $uid]);
     $nuevaCantidad = ($enCarrito ? (int)$enCarrito['cantidad'] : 0) + $cant;
-    if ($nuevaCantidad > (int)$producto['existencia']) {
+    if ((int)$producto['controla_stock'] === 1 && $nuevaCantidad > (int)$producto['existencia']) {
         responder(['ok' => false, 'msg' => 'Stock insuficiente de ' . $producto['descripcion'] . ' (quedan ' . (int)$producto['existencia'] . ')']);
     }
     $precio = (float)$producto['precio'];
@@ -143,57 +220,25 @@ if ($accion === 'procesar') {
 
     $conexion->begin_transaction();
     try {
-        $carrito = db_all(
-            'SELECT t.id_producto, t.cantidad, t.precio_venta, p.existencia, p.descripcion
-             FROM detalle_temp t INNER JOIN producto p ON p.codproducto = t.id_producto
-             WHERE t.id_usuario = ? FOR UPDATE',
-            [$uid]
-        );
+        $carrito = db_all('SELECT id_producto, cantidad FROM detalle_temp WHERE id_usuario = ? FOR UPDATE', [$uid]);
         if (!$carrito) {
             throw new RuntimeException('No hay productos para generar la venta');
         }
-        foreach ($carrito as $item) {
-            if ((int)$item['cantidad'] > (int)$item['existencia']) {
-                throw new RuntimeException('Stock insuficiente de ' . $item['descripcion'] . ' (quedan ' . (int)$item['existencia'] . ')');
-            }
-        }
-
-        $idVenta = 0;
-        $agregado = false;
-        if ($tipo === 'mesa') {
-            $idVenta = (int)db_val(
-                "SELECT id FROM ventas WHERE tipo = 'mesa' AND id_mesa = ? AND estado NOT IN ('pagado', 'anulado') ORDER BY id DESC LIMIT 1 FOR UPDATE",
-                [$idMesa]
-            );
-        }
-        if ($idVenta) {
-            // La mesa ya tiene una cuenta abierta: se agregan los productos a esa cuenta
-            $agregado = true;
-            db_exec(
-                "UPDATE ventas SET estado = 'pendiente', nota = LEFT(CONCAT_WS(' | ', NULLIF(nota, ''), NULLIF(?, '')), 255) WHERE id = ?",
-                [$nota, $idVenta]
-            );
-        } else {
-            $estado = $tipo === 'mostrador' ? 'pagado' : 'pendiente';
-            db_exec(
-                'INSERT INTO ventas (id_cliente, total, id_usuario, tipo, id_mesa, estado, metodo_pago, costo_envio, direccion_entrega, telefono_entrega, nota)
-                 VALUES (?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                [$idCliente, $uid, $tipo, $idMesa, $estado, $metodo, $costoEnvio, $direccion, $telefono, $nota]
-            );
-            $idVenta = db_insert_id();
-        }
-
-        foreach ($carrito as $item) {
-            db_exec(
-                'INSERT INTO detalle_venta (id_producto, id_venta, cantidad, precio) VALUES (?, ?, ?, ?)',
-                [(int)$item['id_producto'], $idVenta, (int)$item['cantidad'], (float)$item['precio_venta']]
-            );
-            db_exec('UPDATE producto SET existencia = existencia - ? WHERE codproducto = ?', [(int)$item['cantidad'], (int)$item['id_producto']]);
-        }
-        db_exec(
-            'UPDATE ventas SET total = (SELECT COALESCE(SUM(cantidad * precio), 0) FROM detalle_venta WHERE id_venta = ?) + costo_envio WHERE id = ?',
-            [$idVenta, $idVenta]
-        );
+        $resultado = registrar_pedido($carrito, [
+            'tipo' => $tipo,
+            'id_cliente' => $idCliente,
+            'id_usuario' => $uid,
+            'id_mesa' => $idMesa,
+            'estado' => $tipo === 'mostrador' && ($_POST['cobrar'] ?? '1') === '1' ? 'pagado' : 'pendiente',
+            'metodo_pago' => $metodo,
+            'costo_envio' => $costoEnvio,
+            'direccion_entrega' => $direccion,
+            'telefono_entrega' => $telefono,
+            'nota' => $nota,
+            'origen' => 'local',
+        ]);
+        $idVenta = $resultado['id'];
+        $agregado = $resultado['agregado'];
         db_exec('DELETE FROM detalle_temp WHERE id_usuario = ?', [$uid]);
         $conexion->commit();
     } catch (RuntimeException $ex) {
@@ -212,6 +257,7 @@ if ($accion === 'procesar') {
         'id_venta' => $idVenta,
         'agregado' => $agregado,
         'tipo' => $tipo,
+        'cocina' => $pedido['estado_cocina'] === 'pendiente',
         'whatsapp' => $tel !== '' ? enlace_whatsapp($tel, mensaje_pedido($pedido)) : null,
     ]);
 }
