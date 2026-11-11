@@ -25,6 +25,11 @@ services:
       - traefik.http.routers.snackmary.tls=true
       - traefik.http.routers.snackmary.tls.certresolver=${TRAEFIK_CERTRESOLVER}
       - traefik.http.services.snackmary.loadbalancer.server.port=80
+      # http -> https (igual que los demás sitios del VPS)
+      - traefik.http.middlewares.snackmary-https.redirectscheme.scheme=https
+      - traefik.http.routers.snackmary-http.rule=Host(`${DOMINIO}`)
+      - traefik.http.routers.snackmary-http.entrypoints=${TRAEFIK_ENTRYPOINT_HTTP}
+      - traefik.http.routers.snackmary-http.middlewares=snackmary-https
 
   db:
     image: mariadb:11
