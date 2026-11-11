@@ -92,6 +92,7 @@ include_once "includes/header.php";
                         <small class="form-text text-muted">Apágalo para platos que se preparan al momento.</small>
                     </div>
                     <input type="submit" value="Actualizar producto" class="btn btn-primary">
+                    <a href="opciones.php?id=<?php echo $id; ?>" class="btn btn-info"><i class="fas fa-list-ul"></i> Opciones del plato</a>
                     <a href="productos.php" class="btn btn-danger">Atrás</a>
                 </form>
             </div>

@@ -157,14 +157,23 @@ function iniciarVentas() {
             const visibles = filtrarProductos();
             const elegido = exacto || (visibles.length === 1 ? visibles[0] : null);
             if (elegido) {
-                agregarProducto(elegido.id, 1);
                 this.value = '';
                 pintarGrilla();
+                $(`.pos-producto[data-id="${elegido.id}"]`).trigger('click');
             }
         }
     });
     $('#grilla').on('click', '.pos-producto', function () {
-        agregarProducto(this.dataset.id, 1);
+        const p = productosPOS.find(x => String(x.id) === this.dataset.id);
+        if (p && p.opciones) {
+            // Plato con elecciones: tipo, extras, bebida del combo
+            $.getJSON('ajax.php', { opciones: p.id }, function (info) {
+                if (!info.ok) { aviso('error', info.msg); return; }
+                elegirOpciones(info, (ids, texto, precio, cant) => agregarProducto(p.id, cant, ids));
+            });
+        } else {
+            agregarProducto(this.dataset.id, 1);
+        }
     });
 
     $('#nom_cliente').autocomplete({
@@ -261,7 +270,7 @@ function pintarGrilla() {
         const foto = p.imagen
             ? `<div class="foto" style="background-image:url('${escapeHtml(p.imagen)}')"></div>`
             : `<div class="foto"><i class="fas fa-utensils"></i></div>`;
-        const stock = p.stock === null ? '' : `<div class="stock">${agotado ? 'Agotado' : 'Stock: ' + p.stock}</div>`;
+        const stock = p.stock === null ? (p.opciones ? '<div class="stock"><i class="fas fa-list-ul"></i> con opciones</div>' : '') : `<div class="stock">${agotado ? 'Agotado' : 'Stock: ' + p.stock}</div>`;
         return `<button type="button" class="pos-producto${agotado ? ' agotado' : ''}" data-id="${p.id}">
             ${foto}
             <div class="info"><div class="nombre">${escapeHtml(p.nombre)}</div>
@@ -275,11 +284,11 @@ function listar() {
         let html = '';
         filas.forEach(row => {
             html += `<tr>
-                <td class="pl-3"><div class="font-weight-bold">${escapeHtml(row.descripcion)}</div><small class="text-muted">S/ ${escapeHtml(row.precio_venta)} c/u</small></td>
+                <td class="pl-3"><div class="font-weight-bold">${escapeHtml(row.descripcion)}</div>${row.opciones ? `<div class="small text-danger">${escapeHtml(row.opciones)}</div>` : ''}<small class="text-muted">S/ ${escapeHtml(row.precio_venta)} c/u</small></td>
                 <td class="text-center text-nowrap">
                     <button class="btn btn-outline-danger btn-sm" type="button" onclick="cambiarDetalle('restar', ${row.id})" aria-label="Quitar uno"><i class="fas fa-minus"></i></button>
                     <span class="mx-2 font-weight-bold">${row.cantidad}</span>
-                    <button class="btn btn-outline-success btn-sm" type="button" onclick="agregarProducto(${row.id_producto}, 1)" aria-label="Agregar uno"><i class="fas fa-plus"></i></button>
+                    <button class="btn btn-outline-success btn-sm" type="button" onclick="cambiarDetalle('sumar', ${row.id})" aria-label="Agregar uno"><i class="fas fa-plus"></i></button>
                 </td>
                 <td class="text-right font-weight-bold subtotal pr-3" data-valor="${Number(row.sub_total)}">${Number(row.sub_total).toFixed(2)}</td>
             </tr>`;
@@ -290,10 +299,10 @@ function listar() {
     });
 }
 
-function agregarProducto(id, cant) {
+function agregarProducto(id, cant, opciones) {
     $.ajax({
         url: 'ajax.php', type: 'POST', dataType: 'json',
-        data: { action: 'agregar', id: id, cant: cant },
+        data: { action: 'agregar', id: id, cant: cant, opciones: opciones || [] },
         success: function (res) {
             if (res.ok) listar(); else aviso('error', res.msg, 3000);
         },

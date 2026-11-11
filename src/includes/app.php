@@ -294,9 +294,10 @@ function obtener_pedido(int $id): ?array
         return null;
     }
     $pedido['items'] = db_all(
-        'SELECT d.cantidad, d.precio, d.ronda, p.descripcion
+        "SELECT d.cantidad, d.precio, d.ronda, d.opciones_txt,
+                CONCAT(p.descripcion, IF(d.opciones_txt <> '', CONCAT(' (', d.opciones_txt, ')'), '')) AS descripcion
          FROM detalle_venta d INNER JOIN producto p ON p.codproducto = d.id_producto
-         WHERE d.id_venta = ? ORDER BY d.ronda, d.id',
+         WHERE d.id_venta = ? ORDER BY d.ronda, d.id",
         [$id]
     );
     $pedido['ultima_ronda'] = $pedido['items'] ? max(array_map('intval', array_column($pedido['items'], 'ronda'))) : 1;
@@ -399,41 +400,203 @@ function resumen_caja(array $caja): array
     ];
 }
 
+/* ---------- Opciones por plato ---------- */
+
+/** Grupos de opciones activos de un producto, con sus opciones. */
+function grupos_opciones(int $idProducto): array
+{
+    $grupos = db_all('SELECT id, nombre, minimo, maximo FROM opcion_grupos WHERE id_producto = ? AND estado = 1 ORDER BY orden, id', [$idProducto]);
+    if (!$grupos) {
+        return [];
+    }
+    $porGrupo = [];
+    $marcas = implode(',', array_fill(0, count($grupos), '?'));
+    foreach (db_all(
+        "SELECT o.id, o.id_grupo, o.nombre, o.precio, o.id_producto_stock,
+                ps.existencia AS stock, ps.controla_stock, ps.estado AS estado_stock
+         FROM opciones o LEFT JOIN producto ps ON ps.codproducto = o.id_producto_stock
+         WHERE o.estado = 1 AND o.id_grupo IN ($marcas) ORDER BY o.orden, o.id",
+        array_map(fn($g) => (int)$g['id'], $grupos)
+    ) as $o) {
+        $agotado = $o['id_producto_stock'] !== null
+            && ((int)$o['estado_stock'] !== 1 || ((int)$o['controla_stock'] === 1 && (int)$o['stock'] <= 0));
+        $porGrupo[(int)$o['id_grupo']][] = [
+            'id' => (int)$o['id'],
+            'nombre' => $o['nombre'],
+            'precio' => (float)$o['precio'],
+            'agotado' => $agotado,
+        ];
+    }
+    $lista = [];
+    foreach ($grupos as $g) {
+        if (empty($porGrupo[(int)$g['id']])) {
+            continue;
+        }
+        $lista[] = [
+            'id' => (int)$g['id'],
+            'nombre' => $g['nombre'],
+            'minimo' => (int)$g['minimo'],
+            'maximo' => max(1, (int)$g['maximo']),
+            'opciones' => $porGrupo[(int)$g['id']],
+        ];
+    }
+    return $lista;
+}
+
+/** IDs de productos que tienen opciones activas. */
+function productos_con_opciones(): array
+{
+    return array_flip(array_map('intval', array_column(db_all(
+        'SELECT DISTINCT g.id_producto FROM opcion_grupos g INNER JOIN opciones o ON o.id_grupo = g.id AND o.estado = 1 WHERE g.estado = 1'
+    ), 'id_producto')));
+}
+
+/**
+ * Valida lo elegido para un producto y calcula precio extra, texto y consumo de stock.
+ * Lanza RuntimeException con un mensaje para el usuario.
+ * Devuelve ['clave' => '3,7', 'txt' => 'Pura papa, Inca Kola', 'extra' => 3.0, 'consumo' => [id_producto => unidades]].
+ */
+function resolver_opciones(int $idProducto, array $elegidas, string $nombreProducto = 'el producto'): array
+{
+    $elegidas = array_values(array_unique(array_filter(array_map('intval', $elegidas))));
+    $grupos = db_all('SELECT id, nombre, minimo, maximo FROM opcion_grupos WHERE id_producto = ? AND estado = 1 ORDER BY orden, id', [$idProducto]);
+    $porGrupo = [];
+    $opciones = [];
+    if ($elegidas) {
+        $marcas = implode(',', array_fill(0, count($elegidas), '?'));
+        foreach (db_all(
+            "SELECT o.id, o.id_grupo, o.nombre, o.precio, o.id_producto_stock, g.orden AS orden_grupo, o.orden
+             FROM opciones o INNER JOIN opcion_grupos g ON g.id = o.id_grupo
+             WHERE o.id IN ($marcas) AND o.estado = 1 AND g.estado = 1 AND g.id_producto = ?
+             ORDER BY g.orden, g.id, o.orden, o.id",
+            array_merge($elegidas, [$idProducto])
+        ) as $o) {
+            $opciones[] = $o;
+            $porGrupo[(int)$o['id_grupo']] = ($porGrupo[(int)$o['id_grupo']] ?? 0) + 1;
+        }
+        if (count($opciones) !== count($elegidas)) {
+            throw new RuntimeException('Una opción elegida ya no está disponible. Vuelve a elegir.');
+        }
+    }
+    foreach ($grupos as $g) {
+        // Un grupo sin opciones activas no se exige
+        if (!db_val('SELECT COUNT(*) FROM opciones WHERE id_grupo = ? AND estado = 1', [(int)$g['id']])) {
+            continue;
+        }
+        $n = $porGrupo[(int)$g['id']] ?? 0;
+        if ($n < (int)$g['minimo']) {
+            throw new RuntimeException('Elige ' . $g['nombre'] . ' para ' . $nombreProducto);
+        }
+        if ($n > max(1, (int)$g['maximo'])) {
+            throw new RuntimeException('En ' . $g['nombre'] . ' puedes elegir hasta ' . max(1, (int)$g['maximo']));
+        }
+    }
+    $ids = array_map(fn($o) => (int)$o['id'], $opciones);
+    sort($ids);
+    $consumo = [];
+    foreach ($opciones as $o) {
+        if ($o['id_producto_stock'] !== null) {
+            $consumo[(int)$o['id_producto_stock']] = ($consumo[(int)$o['id_producto_stock']] ?? 0) + 1;
+        }
+    }
+    return [
+        'clave' => implode(',', $ids),
+        'txt' => mb_substr(implode(', ', array_map(fn($o) => $o['nombre'], $opciones)), 0, 255),
+        'extra' => round(array_sum(array_map(fn($o) => (float)$o['precio'], $opciones)), 2),
+        'consumo' => $consumo,
+    ];
+}
+
+/**
+ * Revisa que alcance el stock. $planas: [['id_producto' => X, 'cantidad' => unidades], ...]
+ * (un producto puede repetirse: se suman). $bloquear = true dentro de una transacción.
+ */
+function verificar_stock(array $planas, bool $bloquear = false): void
+{
+    $necesario = [];
+    foreach ($planas as $l) {
+        $necesario[(int)$l['id_producto']] = ($necesario[(int)$l['id_producto']] ?? 0) + (int)$l['cantidad'];
+    }
+    if (!$necesario) {
+        return;
+    }
+    $marcas = implode(',', array_fill(0, count($necesario), '?'));
+    $prods = [];
+    foreach (db_all("SELECT codproducto, descripcion, existencia, controla_stock, estado FROM producto WHERE codproducto IN ($marcas)" . ($bloquear ? ' FOR UPDATE' : ''), array_keys($necesario)) as $p) {
+        $prods[(int)$p['codproducto']] = $p;
+    }
+    foreach ($necesario as $idp => $total) {
+        $p = $prods[$idp] ?? null;
+        if (!$p || (int)$p['estado'] !== 1) {
+            throw new RuntimeException(($p['descripcion'] ?? 'Un producto') . ' ya no está disponible');
+        }
+        if ((int)$p['controla_stock'] === 1 && $total > (int)$p['existencia']) {
+            throw new RuntimeException('Stock insuficiente de ' . $p['descripcion'] . ' (quedan ' . (int)$p['existencia'] . ')');
+        }
+    }
+}
+
 /* ---------- Pedidos ---------- */
 
 /**
  * Crea un pedido, o agrega una ronda a la cuenta abierta de la mesa.
- * $items: lista de ['id_producto' => int, 'cantidad' => int]. El precio siempre sale de la BD.
+ * $items: lista de ['id_producto' => int, 'cantidad' => int, 'opciones' => [ids de opción]].
+ * El precio y las opciones se validan y calculan SIEMPRE desde la BD.
  * Debe llamarse dentro de una transacción. Lanza RuntimeException con un mensaje para el usuario.
  * Devuelve ['id' => int, 'agregado' => bool].
  */
 function registrar_pedido(array $items, array $d): array
 {
-    $cantidades = [];
+    // Agrupar líneas iguales (mismo producto y mismas opciones)
+    $lineas = [];
     foreach ($items as $it) {
         $idp = (int)($it['id_producto'] ?? 0);
         $cant = (int)($it['cantidad'] ?? 0);
-        if ($idp > 0 && $cant > 0) {
-            $cantidades[$idp] = ($cantidades[$idp] ?? 0) + $cant;
+        if ($idp <= 0 || $cant <= 0) {
+            continue;
+        }
+        $ops = is_array($it['opciones'] ?? null) ? $it['opciones'] : array_filter(explode(',', (string)($it['opciones'] ?? '')));
+        $ops = array_values(array_unique(array_map('intval', $ops)));
+        sort($ops);
+        $clave = $idp . '|' . implode(',', $ops);
+        if (isset($lineas[$clave])) {
+            $lineas[$clave]['cantidad'] += $cant;
+        } else {
+            $lineas[$clave] = ['id_producto' => $idp, 'cantidad' => $cant, 'opciones' => $ops];
         }
     }
-    if (!$cantidades) {
+    if (!$lineas) {
         throw new RuntimeException('No hay productos en el pedido');
     }
-    $marcadores = implode(',', array_fill(0, count($cantidades), '?'));
+    $ids = array_values(array_unique(array_column($lineas, 'id_producto')));
+    $marcadores = implode(',', array_fill(0, count($ids), '?'));
     $productos = [];
-    foreach (db_all("SELECT codproducto, descripcion, precio, existencia, controla_stock, estado FROM producto WHERE codproducto IN ($marcadores) FOR UPDATE", array_keys($cantidades)) as $p) {
+    foreach (db_all("SELECT codproducto, descripcion, precio, existencia, controla_stock, estado FROM producto WHERE codproducto IN ($marcadores) FOR UPDATE", $ids) as $p) {
         $productos[(int)$p['codproducto']] = $p;
     }
-    foreach ($cantidades as $idp => $cant) {
-        $p = $productos[$idp] ?? null;
+    foreach ($lineas as &$l) {
+        $p = $productos[$l['id_producto']] ?? null;
         if (!$p || (int)$p['estado'] !== 1) {
             throw new RuntimeException('Un producto del pedido ya no está disponible');
         }
-        if ((int)$p['controla_stock'] === 1 && $cant > (int)$p['existencia']) {
-            throw new RuntimeException('Stock insuficiente de ' . $p['descripcion'] . ' (quedan ' . (int)$p['existencia'] . ')');
+        $op = resolver_opciones($l['id_producto'], $l['opciones'], $p['descripcion']);
+        $l['precio'] = round((float)$p['precio'] + $op['extra'], 2);
+        $l['clave_op'] = $op['clave'];
+        $l['txt'] = $op['txt'];
+        $l['consumo'] = $op['consumo'];
+        $l['controla'] = (int)$p['controla_stock'] === 1;
+    }
+    unset($l);
+    // Stock: producto base (si lo controla) + bebidas vinculadas a las opciones
+    $planas = [];
+    foreach ($lineas as $l) {
+        // Siempre se incluye el producto (para revisar que siga activo); sus unidades solo cuentan si controla stock
+        $planas[] = ['id_producto' => $l['id_producto'], 'cantidad' => $l['controla'] ? $l['cantidad'] : 0];
+        foreach ($l['consumo'] as $idp => $u) {
+            $planas[] = ['id_producto' => $idp, 'cantidad' => $u * $l['cantidad']];
         }
     }
+    verificar_stock($planas, true);
 
     $tipo = $d['tipo'];
     $idVenta = 0;
@@ -466,14 +629,16 @@ function registrar_pedido(array $items, array $d): array
         $ronda = 1;
     }
 
-    foreach ($cantidades as $idp => $cant) {
-        $p = $productos[$idp];
+    foreach ($lineas as $l) {
         db_exec(
-            'INSERT INTO detalle_venta (id_producto, id_venta, cantidad, precio, ronda) VALUES (?, ?, ?, ?, ?)',
-            [$idp, $idVenta, $cant, (float)$p['precio'], $ronda]
+            'INSERT INTO detalle_venta (id_producto, id_venta, cantidad, precio, ronda, opciones, opciones_txt, consumo) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [$l['id_producto'], $idVenta, $l['cantidad'], $l['precio'], $ronda, $l['clave_op'], $l['txt'], $l['consumo'] ? json_encode($l['consumo']) : '']
         );
-        if ((int)$p['controla_stock'] === 1) {
-            db_exec('UPDATE producto SET existencia = existencia - ? WHERE codproducto = ?', [$cant, $idp]);
+        if ($l['controla']) {
+            db_exec('UPDATE producto SET existencia = existencia - ? WHERE codproducto = ?', [$l['cantidad'], $l['id_producto']]);
+        }
+        foreach ($l['consumo'] as $idp => $u) {
+            db_exec('UPDATE producto SET existencia = existencia - ? WHERE codproducto = ? AND controla_stock = 1', [$l['cantidad'] * $u, $idp]);
         }
     }
     db_exec(
@@ -497,7 +662,8 @@ function registrar_pedido(array $items, array $d): array
 }
 
 /**
- * Anula un pedido devolviendo el stock. Debe llamarse dentro de una transacción.
+ * Anula un pedido devolviendo el stock (producto y bebidas de las opciones).
+ * Debe llamarse dentro de una transacción.
  */
 function anular_pedido(int $id): bool
 {
@@ -505,8 +671,13 @@ function anular_pedido(int $id): bool
     if (!$pedido || $pedido['estado'] === 'anulado') {
         return false;
     }
-    foreach (db_all('SELECT d.id_producto, d.cantidad FROM detalle_venta d INNER JOIN producto p ON p.codproducto = d.id_producto WHERE d.id_venta = ? AND p.controla_stock = 1', [$id]) as $d) {
-        db_exec('UPDATE producto SET existencia = existencia + ? WHERE codproducto = ?', [(int)$d['cantidad'], (int)$d['id_producto']]);
+    foreach (db_all('SELECT d.id_producto, d.cantidad, d.consumo, p.controla_stock FROM detalle_venta d INNER JOIN producto p ON p.codproducto = d.id_producto WHERE d.id_venta = ?', [$id]) as $d) {
+        if ((int)$d['controla_stock'] === 1) {
+            db_exec('UPDATE producto SET existencia = existencia + ? WHERE codproducto = ?', [(int)$d['cantidad'], (int)$d['id_producto']]);
+        }
+        foreach ((array)json_decode((string)$d['consumo'], true) as $idp => $u) {
+            db_exec('UPDATE producto SET existencia = existencia + ? WHERE codproducto = ? AND controla_stock = 1', [(int)$d['cantidad'] * (int)$u, (int)$idp]);
+        }
     }
     db_exec("UPDATE ventas SET estado = 'anulado' WHERE id = ?", [$id]);
     return true;

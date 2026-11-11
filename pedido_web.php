@@ -63,7 +63,8 @@ foreach ($items as $it) {
     if ($cant < 1 || $cant > 50) {
         salir(['ok' => false, 'msg' => 'Cantidad no válida']);
     }
-    $lista[] = ['id_producto' => (int)($it['id'] ?? 0), 'cantidad' => $cant];
+    $ops = isset($it['opciones']) && is_array($it['opciones']) ? array_slice(array_map('intval', $it['opciones']), 0, 30) : [];
+    $lista[] = ['id_producto' => (int)($it['id'] ?? 0), 'cantidad' => $cant, 'opciones' => $ops];
 }
 
 $conexion->begin_transaction();

@@ -17,6 +17,7 @@ Pensado para usarse en una **tablet** (botones grandes, pantalla completa, insta
 | **Mis entregas** | Vista de celular para el repartidor: mapa, llamar, WhatsApp, "Salí a entregar" y "Entregado y cobrado". |
 | **Caja** | Apertura con sencillo, gastos e ingresos, arqueo por método de pago y cierre con diferencia (sobra/falta). Historial imprimible. |
 | **Reportes** | Ventas por día y por hora, por categoría, productos más vendidos, por trabajador, tipo, método y origen. Exporta a Excel. |
+| **Opciones por plato** | Cada plato puede tener grupos de opciones: **Tipo** (clásica, pura papa, con mollejitas), **Extras** (+ porción de salchicha) o **Bebida del combo**. Cada opción puede sumar precio y descontar el stock de una bebida. Se eligen en caja y en la carta, y se ven en cocina, comanda, ticket y WhatsApp. Se pueden copiar de un plato a otro. |
 | **Productos / Categorías** | Foto (se reduce y recomprime sola), categoría, y productos **sin control de stock** para platos preparados. Las categorías marcadas "no va a cocina" (bebidas) no aparecen en Cocina. |
 | **Carta pública** (`carta.php`) | El cliente elige, pone sus datos (o comparte su ubicación GPS) y el pedido **entra directo al sistema**. Luego puede avisar por WhatsApp. Tiene protección anti-spam. |
 | **Ventas** | Historial por fechas, ticket PDF, WhatsApp y anulación. |
@@ -67,6 +68,7 @@ docker exec -i snackmary-db mariadb -uroot -p"$DB_ROOT_PASS" -e "DROP DATABASE $
 docker exec -i snackmary-db mariadb -uroot -p"$DB_ROOT_PASS" "$DB_NAME" < respaldo.sql
 docker exec -i snackmary-db mariadb -uroot -p"$DB_ROOT_PASS" "$DB_NAME" < database/migracion_v2.sql
 docker exec -i snackmary-db mariadb -uroot -p"$DB_ROOT_PASS" "$DB_NAME" < database/migracion_v3.sql
+docker exec -i snackmary-db mariadb -uroot -p"$DB_ROOT_PASS" "$DB_NAME" < database/migracion_v4.sql
 ```
 
 ### Actualizar a una nueva versión
@@ -79,8 +81,10 @@ Si la versión trae cambios en la base de datos (archivo `database/migracion_vN.
 
 ```bash
 cd /opt/snackmary && set -a && . ./.env && set +a
-docker exec -i snackmary-db mariadb -uroot -p"$DB_ROOT_PASS" "$DB_NAME" < database/migracion_v3.sql
+docker exec -i snackmary-db mariadb -uroot -p"$DB_ROOT_PASS" "$DB_NAME" < database/migracion_v4.sql
 ```
+
+Cada archivo de migración se aplica una sola vez y en orden (v2 → v3 → v4); si ya aplicaste uno, aplicarlo de nuevo no rompe nada.
 
 ### Copia de seguridad
 
@@ -98,7 +102,7 @@ Las fotos de productos están en el volumen `snackmary_uploads`.
    Este archivo **no** se sube al repositorio (está en `.gitignore`).
 3. Base de datos (en phpMyAdmin):
    - **Si ya tienes el sistema funcionando:** haz una copia de seguridad (Exportar) y luego ejecuta
-     `database/migracion_v2.sql` y luego `database/migracion_v3.sql` en la pestaña SQL. Tus ventas, productos y clientes se conservan.
+     `database/migracion_v2.sql`, luego `database/migracion_v3.sql` y `database/migracion_v4.sql` en la pestaña SQL. Tus ventas, productos y clientes se conservan.
    - **Si es una instalación nueva:** importa `database/instalacion.sql` en una base vacía.
      Usuario inicial: `admin` / `admin`. Cámbiala apenas ingreses.
 4. Entra a **Configuración** y escribe el número de WhatsApp del negocio.

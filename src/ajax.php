@@ -42,6 +42,7 @@ if (isset($_GET['grilla'])) {
     // Productos para la grilla táctil de Nueva venta
     require_permiso('nueva_venta');
     $activas = array_flip(array_map('intval', array_column(db_all('SELECT id FROM categorias WHERE estado = 1'), 'id')));
+    $conOpciones = productos_con_opciones();
     $datos = [];
     foreach (db_all(
         'SELECT p.codproducto, p.codigo, p.descripcion, p.precio, p.existencia, p.controla_stock, p.imagen, p.id_categoria
@@ -57,6 +58,7 @@ if (isset($_GET['grilla'])) {
             'stock' => (int)$row['controla_stock'] === 1 ? (int)$row['existencia'] : null,
             'imagen' => imagen_producto($row['imagen']) ? '../' . imagen_producto($row['imagen']) : null,
             'categoria' => $row['id_categoria'] !== null && isset($activas[(int)$row['id_categoria']]) ? (int)$row['id_categoria'] : 0,
+            'opciones' => isset($conOpciones[(int)$row['codproducto']]),
         ];
     }
     responder($datos);
@@ -85,7 +87,7 @@ if (isset($_GET['cocina'])) {
         $p = obtener_pedido((int)$r['id']);
         $items = [];
         foreach (db_all(
-            'SELECT d.cantidad, d.ronda, p.descripcion FROM detalle_venta d
+            'SELECT d.cantidad, d.ronda, d.opciones_txt, p.descripcion FROM detalle_venta d
              INNER JOIN producto p ON p.codproducto = d.id_producto
              LEFT JOIN categorias c ON c.id = p.id_categoria
              WHERE d.id_venta = ? AND COALESCE(c.cocina, 1) = 1 ORDER BY d.ronda, d.id',
@@ -94,6 +96,7 @@ if (isset($_GET['cocina'])) {
             $items[] = [
                 'cantidad' => (int)$it['cantidad'],
                 'nombre' => $it['descripcion'],
+                'opciones' => $it['opciones_txt'],
                 'nuevo' => $p['ultima_ronda'] > 1 && (int)$it['ronda'] === $p['ultima_ronda'],
                 'anterior' => $p['ultima_ronda'] > 1 && (int)$it['ronda'] < $p['ultima_ronda'],
             ];
@@ -115,10 +118,17 @@ if (isset($_GET['cocina'])) {
     responder($lista);
 }
 
+if (isset($_GET['opciones'])) {
+    require_permiso('nueva_venta');
+    $idp = entero($_GET['opciones']);
+    $p = db_one('SELECT codproducto, descripcion, precio FROM producto WHERE codproducto = ? AND estado = 1', [$idp]);
+    responder($p ? ['ok' => true, 'id' => (int)$p['codproducto'], 'nombre' => $p['descripcion'], 'precio' => (float)$p['precio'], 'grupos' => grupos_opciones($idp)] : ['ok' => false, 'msg' => 'Producto no encontrado']);
+}
+
 if (isset($_GET['detalle'])) {
     require_permiso('nueva_venta');
     $filas = db_all(
-        'SELECT d.id, d.id_producto, d.cantidad, d.precio_venta, p.descripcion
+        'SELECT d.id, d.id_producto, d.cantidad, d.precio_venta, d.opciones_txt, p.descripcion
          FROM detalle_temp d INNER JOIN producto p ON d.id_producto = p.codproducto
          WHERE d.id_usuario = ? ORDER BY d.id',
         [$uid]
@@ -129,12 +139,35 @@ if (isset($_GET['detalle'])) {
             'id' => (int)$row['id'],
             'id_producto' => (int)$row['id_producto'],
             'descripcion' => $row['descripcion'],
+            'opciones' => $row['opciones_txt'],
             'cantidad' => (int)$row['cantidad'],
             'precio_venta' => dinero($row['precio_venta']),
             'sub_total' => round($row['precio_venta'] * $row['cantidad'], 2),
         ];
     }
     responder($datos);
+}
+
+/**
+ * Unidades de stock que ocupa el carrito de un usuario, como lista plana
+ * [['id_producto' => X, 'cantidad' => unidades], ...] lista para verificar_stock().
+ * Cuenta el producto (si controla stock) y las bebidas vinculadas a sus opciones.
+ */
+function unidades_carrito(int $uid): array
+{
+    $plana = [];
+    foreach (db_all('SELECT d.id_producto, d.cantidad, d.opciones, p.controla_stock FROM detalle_temp d INNER JOIN producto p ON p.codproducto = d.id_producto WHERE d.id_usuario = ?', [(string)$uid]) as $r) {
+        if ((int)$r['controla_stock'] === 1) {
+            $plana[] = ['id_producto' => (int)$r['id_producto'], 'cantidad' => (int)$r['cantidad']];
+        }
+        foreach (array_filter(explode(',', $r['opciones'])) as $idOp) {
+            $vinc = db_val('SELECT id_producto_stock FROM opciones WHERE id = ?', [(int)$idOp]);
+            if ($vinc) {
+                $plana[] = ['id_producto' => (int)$vinc, 'cantidad' => (int)$r['cantidad']];
+            }
+        }
+    }
+    return $plana;
 }
 
 /* ---------- Escrituras (solo POST con token CSRF) ---------- */
@@ -144,27 +177,50 @@ if (!es_post()) {
 csrf_check();
 $accion = $_POST['action'] ?? '';
 
-if ($accion === 'agregar') {
+if ($accion === 'agregar' || $accion === 'sumar') {
     require_permiso('nueva_venta');
-    $idProducto = entero($_POST['id'] ?? 0);
-    $cant = max(1, entero($_POST['cant'] ?? 1));
+    if ($accion === 'sumar') {
+        // "+" en una línea del carrito: repite el mismo producto con las mismas opciones
+        $linea = db_one('SELECT id_producto, opciones FROM detalle_temp WHERE id = ? AND id_usuario = ?', [entero($_POST['id'] ?? 0), (string)$uid]);
+        if (!$linea) {
+            responder(['ok' => false, 'msg' => 'No encontrado']);
+        }
+        $idProducto = (int)$linea['id_producto'];
+        $elegidas = array_filter(explode(',', $linea['opciones']));
+        $cant = 1;
+    } else {
+        $idProducto = entero($_POST['id'] ?? 0);
+        $elegidas = (array)($_POST['opciones'] ?? []);
+        $cant = max(1, min(50, entero($_POST['cant'] ?? 1)));
+    }
     $producto = db_one('SELECT codproducto, precio, existencia, descripcion, controla_stock FROM producto WHERE codproducto = ? AND estado = 1', [$idProducto]);
     if (!$producto) {
         responder(['ok' => false, 'msg' => 'Producto no encontrado']);
     }
-    $enCarrito = db_one('SELECT id, cantidad FROM detalle_temp WHERE id_producto = ? AND id_usuario = ?', [$idProducto, $uid]);
-    $nuevaCantidad = ($enCarrito ? (int)$enCarrito['cantidad'] : 0) + $cant;
-    if ((int)$producto['controla_stock'] === 1 && $nuevaCantidad > (int)$producto['existencia']) {
-        responder(['ok' => false, 'msg' => 'Stock insuficiente de ' . $producto['descripcion'] . ' (quedan ' . (int)$producto['existencia'] . ')']);
+    try {
+        $op = resolver_opciones($idProducto, $elegidas, $producto['descripcion']);
+        // Stock: lo que ya hay en el carrito + lo nuevo (producto y bebidas vinculadas)
+        $planas = unidades_carrito($uid);
+        if ((int)$producto['controla_stock'] === 1) {
+            $planas[] = ['id_producto' => $idProducto, 'cantidad' => $cant];
+        }
+        foreach ($op['consumo'] as $idp => $u) {
+            $planas[] = ['id_producto' => $idp, 'cantidad' => $u * $cant];
+        }
+        verificar_stock($planas);
+    } catch (RuntimeException $ex) {
+        responder(['ok' => false, 'msg' => $ex->getMessage()]);
     }
-    $precio = (float)$producto['precio'];
+    $precio = round((float)$producto['precio'] + $op['extra'], 2);
+    $enCarrito = db_one('SELECT id, cantidad FROM detalle_temp WHERE id_producto = ? AND opciones = ? AND id_usuario = ?', [$idProducto, $op['clave'], (string)$uid]);
     if ($enCarrito) {
-        db_exec('UPDATE detalle_temp SET cantidad = ?, total = ? WHERE id = ?', [$nuevaCantidad, round($nuevaCantidad * $precio, 2), (int)$enCarrito['id']]);
+        $nueva = (int)$enCarrito['cantidad'] + $cant;
+        db_exec('UPDATE detalle_temp SET cantidad = ?, precio_venta = ?, total = ? WHERE id = ?', [$nueva, $precio, round($nueva * $precio, 2), (int)$enCarrito['id']]);
         responder(['ok' => true, 'msg' => 'Producto actualizado']);
     }
     db_exec(
-        'INSERT INTO detalle_temp (id_usuario, id_producto, cantidad, precio_venta, total) VALUES (?, ?, ?, ?, ?)',
-        [(string)$uid, $idProducto, $cant, $precio, round($cant * $precio, 2)]
+        'INSERT INTO detalle_temp (id_usuario, id_producto, cantidad, precio_venta, total, opciones, opciones_txt) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [(string)$uid, $idProducto, $cant, $precio, round($cant * $precio, 2), $op['clave'], $op['txt']]
     );
     responder(['ok' => true, 'msg' => 'Producto agregado']);
 }
@@ -220,7 +276,7 @@ if ($accion === 'procesar') {
 
     $conexion->begin_transaction();
     try {
-        $carrito = db_all('SELECT id_producto, cantidad FROM detalle_temp WHERE id_usuario = ? FOR UPDATE', [$uid]);
+        $carrito = db_all('SELECT id_producto, cantidad, opciones FROM detalle_temp WHERE id_usuario = ? FOR UPDATE', [(string)$uid]);
         if (!$carrito) {
             throw new RuntimeException('No hay productos para generar la venta');
         }

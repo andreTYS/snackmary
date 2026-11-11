@@ -30,7 +30,7 @@ if (es_post()) {
     }
 }
 $categorias = db_all('SELECT id, nombre FROM categorias WHERE estado = 1 ORDER BY orden, nombre');
-$productos = db_all('SELECT p.*, c.nombre AS categoria FROM producto p LEFT JOIN categorias c ON c.id = p.id_categoria AND c.estado = 1 ORDER BY p.estado DESC, p.descripcion');
+$productos = db_all('SELECT p.*, c.nombre AS categoria, (SELECT COUNT(*) FROM opcion_grupos g WHERE g.id_producto = p.codproducto AND g.estado = 1) AS grupos FROM producto p LEFT JOIN categorias c ON c.id = p.id_categoria AND c.estado = 1 ORDER BY p.estado DESC, p.descripcion');
 include_once "includes/header.php";
 ?>
 <button class="btn btn-primary mb-2" type="button" data-toggle="modal" data-target="#nuevo_producto"><i class="fas fa-plus"></i> Nuevo producto</button>
@@ -76,6 +76,7 @@ include_once "includes/header.php";
                                 <a href="agregar_producto.php?id=<?php echo (int)$data['codproducto']; ?>" class="btn btn-primary btn-sm" title="Agregar stock"><i class='fas fa-plus-square'></i></a>
                             <?php } ?>
                             <a href="editar_producto.php?id=<?php echo (int)$data['codproducto']; ?>" class="btn btn-success btn-sm" title="Editar"><i class='fas fa-edit'></i></a>
+                            <a href="opciones.php?id=<?php echo (int)$data['codproducto']; ?>" class="btn btn-<?php echo $data['grupos'] ? 'info' : 'outline-info'; ?> btn-sm" title="Opciones: tipo, extras, bebida del combo"><i class='fas fa-list-ul'></i><?php echo $data['grupos'] ? ' ' . (int)$data['grupos'] : ''; ?></a>
                             <form action="eliminar_producto.php" method="post" class="confirmar d-inline">
                                 <?php echo csrf_field(); ?>
                                 <input type="hidden" name="id" value="<?php echo (int)$data['codproducto']; ?>">

@@ -93,6 +93,8 @@ select.form-control { padding-right: 2rem; }
 .cocina-ticket li { padding: .3rem 0; border-bottom: 1px dashed #ddd; }
 .cocina-ticket li b { display: inline-block; min-width: 2.2rem; }
 .cocina-ticket li.anterior { color: #aaa; text-decoration: line-through; font-size: 1rem; }
+.cocina-ticket li .opciones-cocina { font-size: 1rem; color: #b5161b; font-weight: 600; padding-left: 2.2rem; }
+.cocina-ticket li.anterior .opciones-cocina { color: #aaa; }
 .cocina-ticket li .etiqueta-nuevo { background: #28a745; color: #fff; border-radius: 6px; padding: 0 .4rem; font-size: .8rem; margin-left: .4rem; }
 .cocina-ticket .nota { background: #fff3cd; padding: .5rem 1rem; font-size: 1.05rem; }
 .cocina-ticket .acciones { display: flex; }

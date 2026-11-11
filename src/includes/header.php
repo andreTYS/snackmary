@@ -32,7 +32,7 @@ $cajaActual = tiene_permiso('caja') || tiene_permiso('nueva_venta') ? caja_abier
     <link href="../assets/css/styles.css" rel="stylesheet" />
     <link href="../assets/css/dataTables.bootstrap4.min.css" rel="stylesheet" />
     <link rel="stylesheet" href="../assets/js/jquery-ui/jquery-ui.min.css">
-    <link href="../assets/css/tablet.css?v=3" rel="stylesheet" />
+    <link href="../assets/css/tablet.css?v=4" rel="stylesheet" />
     <link rel="icon" href="../assets/img/logo.png">
     <link rel="manifest" href="../manifest.webmanifest">
     <meta name="theme-color" content="#e21e24">
