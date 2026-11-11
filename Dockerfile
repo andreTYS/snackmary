@@ -6,7 +6,9 @@ RUN docker-php-ext-install mysqli \
     # Permitir .htaccess (bloqueo de archivos sensibles)
     && sed -ri 's/AllowOverride None/AllowOverride All/g' /etc/apache2/apache2.conf \
     # No mostrar versión de Apache/PHP
-    && printf 'ServerTokens Prod\nServerSignature Off\n' > /etc/apache2/conf-enabled/zz-seguridad.conf
+    && printf 'ServerTokens Prod\nServerSignature Off\n' > /etc/apache2/conf-enabled/zz-seguridad.conf \
+    # Evita el aviso AH00558 (Traefik es quien recibe el dominio real)
+    && echo 'ServerName localhost' > /etc/apache2/conf-enabled/servername.conf
 
 COPY docker/php.ini /usr/local/etc/php/conf.d/snackmary.ini
 
