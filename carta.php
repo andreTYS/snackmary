@@ -19,6 +19,13 @@ foreach ($productos as $p) {
     $cat = in_array((int)$p['id_categoria'], $idsCat, true) ? (int)$p['id_categoria'] : 0;
     $grupos[$cat][] = $p;
 }
+$opcionesCarta = [];
+foreach (productos_con_opciones() as $idp => $_) {
+    $g = grupos_opciones((int)$idp);
+    if ($g) {
+        $opcionesCarta[(int)$idp] = $g;
+    }
+}
 $nombreNegocio = $negocio['nombre'] ?? 'Snack Mary';
 $costoEnvio = (float)($negocio['costo_envio'] ?? 0);
 $activa = !empty($negocio['carta_activa']);
@@ -32,7 +39,7 @@ $activa = !empty($negocio['carta_activa']);
     <title><?php echo e($nombreNegocio); ?> - Carta</title>
     <meta name="description" content="Pide en <?php echo e($nombreNegocio); ?>: delivery o recojo en tienda.">
     <link href="assets/css/styles.css" rel="stylesheet" />
-    <link href="assets/css/tablet.css?v=3" rel="stylesheet" />
+    <link href="assets/css/tablet.css?v=4" rel="stylesheet" />
     <link rel="icon" href="assets/img/icon-192.png">
     <link rel="apple-touch-icon" href="assets/img/icon-192.png">
     <meta name="theme-color" content="#e21e24">
@@ -99,6 +106,7 @@ $activa = !empty($negocio['carta_activa']);
                         <?php } ?>
                         <div class="info">
                             <div class="nombre"><?php echo e($p['descripcion']); ?></div>
+                            <?php if (isset($opcionesCarta[(int)$p['codproducto']])) { ?><div class="small text-muted"><i class="fas fa-list-ul"></i> Elige tu opción</div><?php } ?>
                             <div class="d-flex justify-content-between align-items-center mt-2">
                                 <span class="precio">S/ <?php echo dinero($p['precio']); ?></span>
                                 <span class="text-nowrap">
@@ -180,10 +188,13 @@ $activa = !empty($negocio['carta_activa']);
     <script src="assets/js/jquery-3.6.0.min.js"></script>
     <script src="assets/js/bootstrap.bundle.min.js"></script>
     <script src="assets/js/sweetalert2.all.min.js"></script>
+    <script src="assets/js/opciones.js?v=4"></script>
     <script>
         (function () {
             const ENVIO = <?php echo json_encode($costoEnvio); ?>;
-            const carrito = {};
+            const OPCIONES = <?php echo json_encode($opcionesCarta, JSON_HEX_TAG | JSON_HEX_AMP); ?>;
+            // Carrito por líneas: un mismo plato con distintas opciones va en líneas separadas
+            let lineas = [];
             let guardado = {};
             try { guardado = JSON.parse(localStorage.getItem('sm_cliente') || '{}'); } catch (e) { }
             ['nombre', 'telefono', 'direccion'].forEach(k => { if (guardado[k]) document.getElementById(k).value = guardado[k]; });
@@ -191,22 +202,41 @@ $activa = !empty($negocio['carta_activa']);
             const esc = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
             const entrega = () => document.querySelector('input[name="entrega"]:checked').value;
 
+            function sumarLinea(id, nombre, precio, opciones, texto, cant) {
+                const clave = id + '|' + opciones.slice().sort((a, b) => a - b).join(',');
+                const l = lineas.find(x => x.clave === clave);
+                if (l) l.cant += cant;
+                else lineas.push({ clave, id, nombre, precio, opciones, texto, cant });
+                actualizar();
+            }
+
             function actualizar() {
                 let total = 0, n = 0;
+                lineas = lineas.filter(l => l.cant > 0);
                 document.querySelectorAll('.producto').forEach(el => {
-                    const c = carrito[el.dataset.id] || 0;
-                    el.querySelector('.cantidad').textContent = c;
-                    total += c * parseFloat(el.dataset.precio);
-                    n += c;
+                    el.querySelector('.cantidad').textContent = lineas.filter(l => String(l.id) === el.dataset.id).reduce((a, l) => a + l.cant, 0);
                 });
+                lineas.forEach(l => { total += l.cant * l.precio; n += l.cant; });
                 document.getElementById('total').textContent = total.toFixed(2);
                 document.getElementById('numItems').textContent = n;
                 return total;
             }
 
             document.querySelectorAll('.producto').forEach(el => {
-                el.querySelector('.mas').addEventListener('click', () => { carrito[el.dataset.id] = (carrito[el.dataset.id] || 0) + 1; actualizar(); });
-                el.querySelector('.menos').addEventListener('click', () => { carrito[el.dataset.id] = Math.max(0, (carrito[el.dataset.id] || 0) - 1); actualizar(); });
+                const id = Number(el.dataset.id);
+                el.querySelector('.mas').addEventListener('click', () => {
+                    if (OPCIONES[id]) {
+                        elegirOpciones({ id, nombre: el.dataset.nombre, precio: parseFloat(el.dataset.precio), grupos: OPCIONES[id] },
+                            (ids, texto, precio, cant) => sumarLinea(id, el.dataset.nombre, precio, ids, texto, cant));
+                    } else {
+                        sumarLinea(id, el.dataset.nombre, parseFloat(el.dataset.precio), [], '', 1);
+                    }
+                });
+                el.querySelector('.menos').addEventListener('click', () => {
+                    // Quita una unidad de la última línea de este plato
+                    const ultima = lineas.filter(l => l.id === id).pop();
+                    if (ultima) { ultima.cant--; actualizar(); }
+                });
             });
 
             document.getElementById('buscar').addEventListener('input', function () {
@@ -222,19 +252,23 @@ $activa = !empty($negocio['carta_activa']);
 
             function pintarResumen() {
                 let html = '', subtotal = 0;
-                document.querySelectorAll('.producto').forEach(el => {
-                    const c = carrito[el.dataset.id] || 0;
-                    if (c > 0) {
-                        const imp = c * parseFloat(el.dataset.precio);
-                        subtotal += imp;
-                        html += `<li class="d-flex justify-content-between"><span><b>${c}×</b> ${esc(el.dataset.nombre)}</span><span>S/ ${imp.toFixed(2)}</span></li>`;
-                    }
+                lineas.forEach((l, i) => {
+                    const imp = l.cant * l.precio;
+                    subtotal += imp;
+                    html += `<li class="d-flex justify-content-between align-items-start py-1"><span><b>${l.cant}×</b> ${esc(l.nombre)}${l.texto ? `<br><small class="text-danger">${esc(l.texto)}</small>` : ''}</span>
+                        <span class="text-nowrap">S/ ${imp.toFixed(2)} <button type="button" class="btn btn-link text-danger p-0 ml-2 quitar-linea" data-i="${i}" aria-label="Quitar"><i class="fas fa-times"></i></button></span></li>`;
                 });
                 const envio = entrega() === 'delivery' ? ENVIO : 0;
                 if (envio > 0) html += `<li class="d-flex justify-content-between text-muted"><span>Delivery</span><span>S/ ${envio.toFixed(2)}</span></li>`;
                 $('#resumen').html(html + '<hr class="my-2">');
                 $('#totalModal').text((subtotal + envio).toFixed(2));
             }
+            $('#resumen').on('click', '.quitar-linea', function () {
+                lineas.splice(Number(this.dataset.i), 1);
+                actualizar();
+                if (!lineas.length) { $('#modalPedido').modal('hide'); return; }
+                pintarResumen();
+            });
 
             $('#verPedido').on('click', () => {
                 if (actualizar() <= 0) {
@@ -265,7 +299,7 @@ $activa = !empty($negocio['carta_activa']);
             $('#confirmar').on('click', function () {
                 const form = document.getElementById('frmPedido');
                 if (!form.reportValidity()) return;
-                const items = Object.entries(carrito).filter(([, c]) => c > 0).map(([id, c]) => ({ id: +id, cant: c }));
+                const items = lineas.map(l => ({ id: l.id, cant: l.cant, opciones: l.opciones }));
                 const datos = new FormData(form);
                 datos.append('items', JSON.stringify(items));
                 const btn = this;
@@ -277,7 +311,7 @@ $activa = !empty($negocio['carta_activa']);
                         if (!r.ok) { Swal.fire({ icon: 'error', title: r.msg, confirmButtonColor: '#e21e24' }); return; }
                         try { localStorage.setItem('sm_cliente', JSON.stringify({ nombre: datos.get('nombre'), telefono: datos.get('telefono'), direccion: datos.get('direccion') })); } catch (e) { }
                         $('#modalPedido').modal('hide');
-                        Object.keys(carrito).forEach(k => delete carrito[k]);
+                        lineas = [];
                         actualizar();
                         Swal.fire({
                             icon: 'success',

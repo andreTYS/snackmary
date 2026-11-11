@@ -21,7 +21,7 @@ if (!$pedido) {
 }
 $todas = ($_GET['ronda'] ?? '') === 'todas';
 $items = db_all(
-    'SELECT d.cantidad, d.ronda, p.descripcion FROM detalle_venta d
+    'SELECT d.cantidad, d.ronda, d.opciones_txt, p.descripcion FROM detalle_venta d
      INNER JOIN producto p ON p.codproducto = d.id_producto
      LEFT JOIN categorias c ON c.id = p.id_categoria
      WHERE d.id_venta = ? AND COALESCE(c.cocina, 1) = 1' . ($todas ? '' : ' AND d.ronda = ?') . '
@@ -29,7 +29,7 @@ $items = db_all(
     $todas ? [$id] : [$id, $pedido['ultima_ronda']]
 );
 
-$alto = 70 + count($items) * 10 + ($pedido['nota'] ? 15 : 0);
+$alto = 70 + count($items) * 10 + count(array_filter(array_column($items, 'opciones_txt'))) * 8 + ($pedido['nota'] ? 15 : 0);
 $pdf = new FPDF('P', 'mm', [80, max(100, $alto)]);
 $pdf->SetMargins(3, 3, 3);
 $pdf->SetAutoPageBreak(true, 3);
@@ -59,8 +59,14 @@ if (!$items) {
     $pdf->MultiCell(74, 6, pdf_txt('Este pedido no tiene productos para cocina.'), 0, 'C');
 }
 foreach ($items as $it) {
+    $pdf->SetFont('Arial', 'B', 15);
     $pdf->Cell(14, 9, (int)$it['cantidad'] . ' x', 0, 0, 'L');
     $pdf->MultiCell(60, 9, pdf_txt($it['descripcion']), 0, 'L');
+    if ($it['opciones_txt'] !== '') {
+        $pdf->SetFont('Arial', '', 12);
+        $pdf->SetX(17);
+        $pdf->MultiCell(60, 6, pdf_txt('> ' . $it['opciones_txt']), 0, 'L');
+    }
 }
 if ($pedido['nota']) {
     $pdf->Ln(2);

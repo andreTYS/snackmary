@@ -42,7 +42,8 @@
 <script src="../assets/js/sweetalert2.all.min.js"></script>
 <script src="../assets/js/jquery-ui/jquery-ui.min.js"></script>
 <script src="../assets/js/Chart.bundle.min.js"></script>
-<script src="../assets/js/funciones.js?v=3"></script>
+<script src="../assets/js/opciones.js?v=4"></script>
+<script src="../assets/js/funciones.js?v=4"></script>
 </body>
 
 </html>

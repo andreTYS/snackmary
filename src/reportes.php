@@ -37,6 +37,19 @@ $productos = db_all(
      ORDER BY total DESC",
     $p
 );
+$opcionesTop = db_all(
+    "SELECT pr.descripcion AS plato, g.nombre AS grupo, o.nombre AS opcion, SUM(d.cantidad) AS cantidad, SUM(d.cantidad * o.precio) AS extra
+     FROM detalle_venta d
+     INNER JOIN ventas v ON v.id = d.id_venta
+     INNER JOIN opciones o ON FIND_IN_SET(o.id, d.opciones) > 0
+     INNER JOIN opcion_grupos g ON g.id = o.id_grupo
+     INNER JOIN producto pr ON pr.codproducto = d.id_producto
+     WHERE v.estado = 'pagado' AND d.opciones <> '' AND DATE(COALESCE(v.fecha_pago, v.fecha)) BETWEEN ? AND ?
+     GROUP BY o.id, pr.descripcion, g.nombre, o.nombre
+     ORDER BY cantidad DESC
+     LIMIT 20",
+    $p
+);
 $porCategoria = [];
 foreach ($productos as $pr) {
     $porCategoria[$pr['categoria']] = ($porCategoria[$pr['categoria']] ?? 0) + (float)$pr['total'];
@@ -160,6 +173,23 @@ include_once "includes/header.php";
             </div>
         </div>
     </div>
+    <?php if ($opcionesTop) { ?>
+        <div class="col-lg-8 mb-3">
+            <div class="card">
+                <div class="card-header">Opciones más pedidas</div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0">
+                        <thead class="thead-light"><tr><th>Plato</th><th>Grupo</th><th>Opción</th><th class="text-right">Veces</th><th class="text-right">Extra (precio actual)</th></tr></thead>
+                        <tbody>
+                            <?php foreach ($opcionesTop as $r) { ?>
+                                <tr><td><?php echo e($r['plato']); ?></td><td class="text-muted"><?php echo e($r['grupo']); ?></td><td><?php echo e($r['opcion']); ?></td><td class="text-right"><?php echo (int)$r['cantidad']; ?></td><td class="text-right"><?php echo (float)$r['extra'] > 0 ? 'S/ ' . dinero($r['extra']) : '—'; ?></td></tr>
+                            <?php } ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    <?php } ?>
     <div class="col-lg-4 mb-3">
         <div class="card">
             <div class="card-header">Por trabajador</div>

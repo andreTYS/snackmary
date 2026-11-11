@@ -4,7 +4,7 @@
 -- Si ya tienes datos, usa migracion_v2.sql en su lugar.
 --
 -- Usuario inicial: admin / admin  (cámbiala apenas ingreses)
--- Al final se aplica la estructura de la versión 3 (migracion_v3).
+-- Al final se aplica la estructura de las versiones 3 y 4 (migracion_v3 y v4).
 -- =====================================================================
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
@@ -225,3 +225,48 @@ CREATE TABLE IF NOT EXISTS `caja_movimientos` (
 -- Categorías iniciales
 INSERT INTO `categorias` (`nombre`, `orden`, `cocina`) VALUES
 ('Hamburguesas', 1, 1), ('Salchipapas', 2, 1), ('Bebidas', 3, 0), ('Postres', 4, 1);
+
+-- ===================== Versión 4 =====================
+
+-- Grupos de opciones de un producto (ej: "Tipo", "Extras", "Bebida del combo")
+-- minimo/maximo: cuántas opciones se pueden elegir del grupo
+--   minimo 1, maximo 1 = obligatorio, elige una
+--   minimo 0, maximo 1 = opcional, elige una
+--   minimo 0, maximo N = opcional, varias
+CREATE TABLE IF NOT EXISTS `opcion_grupos` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `id_producto` int(11) NOT NULL,
+  `nombre` varchar(60) NOT NULL,
+  `minimo` int(11) NOT NULL DEFAULT 0,
+  `maximo` int(11) NOT NULL DEFAULT 1,
+  `orden` int(11) NOT NULL DEFAULT 0,
+  `estado` tinyint(1) NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id`),
+  KEY `idx_producto` (`id_producto`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_spanish_ci;
+
+-- Opciones de cada grupo. id_producto_stock: bebida (u otro producto con stock)
+-- que se descuenta cuando se elige esta opción.
+CREATE TABLE IF NOT EXISTS `opciones` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `id_grupo` int(11) NOT NULL,
+  `nombre` varchar(60) NOT NULL,
+  `precio` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `id_producto_stock` int(11) DEFAULT NULL,
+  `orden` int(11) NOT NULL DEFAULT 0,
+  `estado` tinyint(1) NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id`),
+  KEY `idx_grupo` (`id_grupo`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_spanish_ci;
+
+-- Carrito y detalle de venta guardan lo elegido
+ALTER TABLE `detalle_temp`
+  ADD COLUMN IF NOT EXISTS `opciones` varchar(255) NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS `opciones_txt` varchar(255) NOT NULL DEFAULT '';
+
+-- consumo: stock extra que consume CADA unidad (JSON {"id_producto": unidades}),
+-- para devolverlo si se anula el pedido
+ALTER TABLE `detalle_venta`
+  ADD COLUMN IF NOT EXISTS `opciones` varchar(255) NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS `opciones_txt` varchar(255) NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS `consumo` varchar(255) NOT NULL DEFAULT '';

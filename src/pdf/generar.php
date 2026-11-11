@@ -19,7 +19,7 @@ if (!$pedido) {
 $datos = config_negocio();
 
 // Altura del ticket según cantidad de productos
-$alto = 130 + count($pedido['items']) * 9 + ($pedido['tipo'] === 'delivery' ? 15 : 0) + ($pedido['nota'] ? 10 : 0);
+$alto = 130 + count($pedido['items']) * 12 + ($pedido['tipo'] === 'delivery' ? 15 : 0) + ($pedido['nota'] ? 10 : 0);
 $pdf = new FPDF('P', 'mm', [80, max(150, $alto)]);
 $pdf->SetMargins(3, 3, 3);
 $pdf->SetAutoPageBreak(true, 3);

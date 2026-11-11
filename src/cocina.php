@@ -48,7 +48,7 @@ include_once "includes/header.php";
             if (p.ronda > 1) titulo += ' · Ronda ' + p.ronda;
             const clase = p.estado + (p.minutos >= TARDE ? ' tarde' : '');
             const items = p.items.map(it =>
-                `<li class="${it.anterior ? 'anterior' : ''}"><b>${it.cantidad}×</b> ${escapeHtml(it.nombre)}${it.nuevo ? '<span class="etiqueta-nuevo">NUEVO</span>' : ''}</li>`
+                `<li class="${it.anterior ? 'anterior' : ''}"><b>${it.cantidad}×</b> ${escapeHtml(it.nombre)}${it.nuevo ? '<span class="etiqueta-nuevo">NUEVO</span>' : ''}${it.opciones ? `<div class="opciones-cocina">${escapeHtml(it.opciones)}</div>` : ''}</li>`
             ).join('');
             const nota = p.nota ? `<div class="nota"><i class="fas fa-sticky-note"></i> ${escapeHtml(p.nota)}</div>` : '';
             const cliente = p.cliente ? `<div class="px-3 pt-2 text-muted"><i class="fas fa-user"></i> ${escapeHtml(p.cliente)}${p.origen === 'web' ? ' · <span class="badge badge-success">Web</span>' : ''}</div>` : '';
