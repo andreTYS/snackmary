@@ -1,0 +1,23 @@
+{
+  "name": "Snack Mary",
+  "short_name": "Snack Mary",
+  "description": "Ventas, mesas, pedidos y delivery de Snack Mary",
+  "lang": "es-PE",
+  "start_url": "/src/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f3f4f6",
+  "theme_color": "#e21e24",
+  "icons": [
+    { "src": "/assets/img/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/assets/img/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/assets/img/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/assets/img/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Nueva venta", "url": "/src/ventas.php" },
+    { "name": "Pedidos", "url": "/src/pedidos.php" },
+    { "name": "Cocina", "url": "/src/cocina.php" }
+  ]
+}

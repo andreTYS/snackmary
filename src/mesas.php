@@ -37,6 +37,7 @@ $mesas = db_all(
      FROM mesas m WHERE m.estado = 1 ORDER BY m.id"
 );
 $volver = 'mesas.php';
+$repartidores = [];
 include_once "includes/header.php";
 ?>
 <span id="auto-refresh"></span>
@@ -59,12 +60,12 @@ include_once "includes/header.php";
         $abierto = (int)$m['pedido_abierto']; ?>
         <?php if ($abierto) {
             $p = obtener_pedido($abierto); ?>
-            <div class="col-xl-4 col-md-6">
+            <div class="col-xl-4 col-lg-6">
                 <?php include "includes/pedido_card.php"; ?>
             </div>
         <?php } else { ?>
-            <div class="col-xl-2 col-md-3 col-6 mb-3">
-                <div class="card mesa-card border-success text-center h-100">
+            <div class="col-xl-3 col-md-4 col-6 mb-3">
+                <div class="card mesa-card mesa-libre text-center h-100">
                     <div class="card-body d-flex flex-column justify-content-center">
                         <i class="fas fa-chair fa-2x text-success mb-2"></i>
                         <h5 class="mb-0"><?php echo e($m['nombre']); ?></h5>
@@ -72,7 +73,7 @@ include_once "includes/header.php";
                     </div>
                     <div class="card-footer p-1">
                         <?php if (tiene_permiso('nueva_venta')) { ?>
-                            <a href="ventas.php?tipo=mesa&amp;mesa=<?php echo (int)$m['id']; ?>" class="btn btn-success btn-sm">Tomar pedido</a>
+                            <a href="ventas.php?tipo=mesa&amp;mesa=<?php echo (int)$m['id']; ?>" class="btn btn-success">Tomar pedido</a>
                         <?php } ?>
                         <form method="post" class="confirmar d-inline" data-titulo="¿Quitar <?php echo e($m['nombre']); ?>?" data-boton="Sí, quitar">
                             <?php echo csrf_field(); ?>

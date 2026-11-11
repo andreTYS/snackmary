@@ -68,7 +68,7 @@ include_once "includes/header.php";
                 <tr class="<?php echo $row['estado'] === 'anulado' ? 'text-muted' : ''; ?>">
                     <td><?php echo (int)$row['id']; ?></td>
                     <td><?php echo e(date('d/m/Y H:i', strtotime($row['fecha']))); ?></td>
-                    <td><?php echo e(TIPOS_PEDIDO[$row['tipo']] ?? $row['tipo']); ?></td>
+                    <td><?php echo e(TIPOS_PEDIDO[$row['tipo']] ?? $row['tipo']); ?><?php echo $row['origen'] === 'web' ? ' <span class="badge badge-success">Web</span>' : ''; ?></td>
                     <td><?php echo e($row['nombre'] ?? '-'); ?><?php echo $row['mesa'] ? ' · ' . e($row['mesa']) : ''; ?></td>
                     <td><?php echo dinero($row['total']); ?></td>
                     <td><?php echo e(METODOS_PAGO[$row['metodo_pago']] ?? $row['metodo_pago']); ?></td>

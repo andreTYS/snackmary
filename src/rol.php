@@ -32,6 +32,10 @@ $etiquetas = [
     'nueva_venta' => 'Nueva venta',
     'mesas' => 'Mesas',
     'pedidos' => 'Pedidos / Delivery',
+    'caja' => 'Caja (abrir, cerrar, gastos)',
+    'cocina' => 'Pantalla de cocina',
+    'reportes' => 'Reportes',
+    'repartidor' => 'Repartidor (Mis entregas)',
 ];
 include_once "includes/header.php";
 ?>

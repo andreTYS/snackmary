@@ -11,6 +11,8 @@ if (es_post()) {
     $direccion = texto($_POST['direccion'] ?? '', 500);
     $whatsapp = preg_replace('/\D+/', '', (string)($_POST['whatsapp'] ?? ''));
     $codigoPais = preg_replace('/\D+/', '', (string)($_POST['codigo_pais'] ?? '51')) ?: '51';
+    $costoEnvio = decimal_positivo($_POST['costo_envio'] ?? '0') ?? 0.0;
+    $cartaActiva = isset($_POST['carta_activa']) ? 1 : 0;
     if ($nombre === '' || $telefono === '' || $email === '' || $direccion === '') {
         $alert = alerta('danger', 'Todos los campos son obligatorios');
     } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -18,8 +20,8 @@ if (es_post()) {
     } else {
         $id = (int)db_val('SELECT id FROM configuracion ORDER BY id LIMIT 1');
         db_exec(
-            'UPDATE configuracion SET nombre = ?, telefono = ?, email = ?, direccion = ?, whatsapp = ?, codigo_pais = ? WHERE id = ?',
-            [$nombre, $telefono, $email, $direccion, substr($whatsapp, 0, 20), substr($codigoPais, 0, 5), $id]
+            'UPDATE configuracion SET nombre = ?, telefono = ?, email = ?, direccion = ?, whatsapp = ?, codigo_pais = ?, costo_envio = ?, carta_activa = ? WHERE id = ?',
+            [$nombre, $telefono, $email, $direccion, substr($whatsapp, 0, 20), substr($codigoPais, 0, 5), $costoEnvio, $cartaActiva, $id]
         );
         flash('success', 'Datos modificados');
         redirigir('config.php');
@@ -61,6 +63,17 @@ include_once "includes/header.php";
                     <div class="form-group">
                         <label for="txtDirEmpresa">Dirección:</label>
                         <input type="text" name="direccion" class="form-control" value="<?php echo e($data['direccion'] ?? ''); ?>" id="txtDirEmpresa" placeholder="Dirección de la empresa" required>
+                    </div>
+                    <hr>
+                    <h6 class="text-muted">Carta pública (pedidos por internet)</h6>
+                    <div class="custom-control custom-switch mb-2">
+                        <input type="checkbox" class="custom-control-input" id="carta_activa" name="carta_activa" <?php echo ($data['carta_activa'] ?? 1) ? 'checked' : ''; ?>>
+                        <label class="custom-control-label" for="carta_activa">Recibir pedidos desde la carta</label>
+                        <small class="form-text text-muted">Apágalo cuando el local esté cerrado: la carta se seguirá viendo, pero no se podrá pedir.</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="txtEnvio">Costo de delivery (S/)</label>
+                        <input type="number" step="0.50" min="0" name="costo_envio" class="form-control" value="<?php echo e($data['costo_envio'] ?? '0'); ?>" id="txtEnvio">
                     </div>
                     <?php echo $alert; ?>
                     <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Modificar datos</button>

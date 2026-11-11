@@ -5,15 +5,35 @@ PHP + MySQL/MariaDB, sin frameworks (funciona en hosting gratuito como InfinityF
 
 ## Funciones
 
+Pensado para usarse en una **tablet** (botones grandes, pantalla completa, instalable como app).
+
 | Módulo | Qué hace |
 |---|---|
-| **Nueva venta** | Venta en mostrador, pedido en mesa o delivery. Busca clientes y productos, controla stock, método de pago (efectivo, Yape, Plin, tarjeta, transferencia) y nota para cocina. |
-| **Mesas** | Mesas libres/ocupadas. Una mesa ocupada acumula los productos en la misma cuenta hasta que se cobra. |
-| **Pedidos / Delivery** | Pedidos activos con estados (pendiente → preparando → listo / en camino → entregado → pagado). Se actualiza solo cada 30 s. Botón para cobrar, anular (devuelve stock), imprimir ticket y enviar el pedido por WhatsApp al cliente. |
-| **Carta pública** (`carta.php`) | Página para clientes: arman su pedido y lo envían por WhatsApp al número del negocio. No necesita login. |
-| **Ventas** | Historial filtrado por fechas, total cobrado por método de pago, ticket PDF, WhatsApp y anulación. |
-| **Clientes / Productos / Usuarios** | Registro, edición, desactivar y reactivar. Permisos por usuario. |
-| **Configuración** | Datos del negocio, número de WhatsApp y código de país. |
+| **Nueva venta** | Grilla táctil de productos con foto, filtrada por categoría, y lector de código de barras (código + Enter). Mostrador (cobrar al momento o dejar para llevar), mesa o delivery. |
+| **Mesas** | Mesas libres/ocupadas. Si una mesa pide más, se suma a la misma cuenta como una **ronda** nueva. |
+| **Pedidos** | Pedidos activos con estados, repartidor, mapa, comanda, ticket, WhatsApp, cobro y anulación. Se actualiza solo y **suena** cuando entra un pedido nuevo. |
+| **Cocina** | Pantalla oscura solo con lo que hay que preparar, sin precios. En las rondas nuevas marca lo **NUEVO**; los pedidos atrasados (15 min o más) se ponen en rojo. Botones grandes: Preparar → ¡Listo! |
+| **Comanda** | Ticket para cocina con letra grande y sin precios (solo la última ronda). |
+| **Mis entregas** | Vista de celular para el repartidor: mapa, llamar, WhatsApp, "Salí a entregar" y "Entregado y cobrado". |
+| **Caja** | Apertura con sencillo, gastos e ingresos, arqueo por método de pago y cierre con diferencia (sobra/falta). Historial imprimible. |
+| **Reportes** | Ventas por día y por hora, por categoría, productos más vendidos, por trabajador, tipo, método y origen. Exporta a Excel. |
+| **Productos / Categorías** | Foto (se reduce y recomprime sola), categoría, y productos **sin control de stock** para platos preparados. Las categorías marcadas "no va a cocina" (bebidas) no aparecen en Cocina. |
+| **Carta pública** (`carta.php`) | El cliente elige, pone sus datos (o comparte su ubicación GPS) y el pedido **entra directo al sistema**. Luego puede avisar por WhatsApp. Tiene protección anti-spam. |
+| **Ventas** | Historial por fechas, ticket PDF, WhatsApp y anulación. |
+| **Configuración** | Datos del negocio, WhatsApp, costo de delivery y activar/pausar la carta. |
+
+### Permisos por rol
+
+| Rol típico | Permisos |
+|---|---|
+| Cajero | Nueva venta, Mesas, Pedidos, Caja, Clientes |
+| Cocina | Cocina |
+| Repartidor | Repartidor |
+| Administrador | Todo (el usuario `admin` siempre tiene todo) |
+
+### Instalar en la tablet como app
+
+Abre `https://snackmary.moqueguasoft.com` en Chrome → menú ⋮ → **Instalar aplicación** (o "Agregar a pantalla principal"). Se abre a pantalla completa, sin barra del navegador.
 
 ## Despliegue en VPS (Docker + Traefik)
 
@@ -46,12 +66,20 @@ cd /opt/snackmary && set -a && . ./.env && set +a
 docker exec -i snackmary-db mariadb -uroot -p"$DB_ROOT_PASS" -e "DROP DATABASE $DB_NAME; CREATE DATABASE $DB_NAME; GRANT ALL ON $DB_NAME.* TO '$DB_USER'@'%';"
 docker exec -i snackmary-db mariadb -uroot -p"$DB_ROOT_PASS" "$DB_NAME" < respaldo.sql
 docker exec -i snackmary-db mariadb -uroot -p"$DB_ROOT_PASS" "$DB_NAME" < database/migracion_v2.sql
+docker exec -i snackmary-db mariadb -uroot -p"$DB_ROOT_PASS" "$DB_NAME" < database/migracion_v3.sql
 ```
 
 ### Actualizar a una nueva versión
 
 ```bash
 cd /opt/snackmary && git pull && docker compose up -d --build
+```
+
+Si la versión trae cambios en la base de datos (archivo `database/migracion_vN.sql` nuevo), aplícalo una vez:
+
+```bash
+cd /opt/snackmary && set -a && . ./.env && set +a
+docker exec -i snackmary-db mariadb -uroot -p"$DB_ROOT_PASS" "$DB_NAME" < database/migracion_v3.sql
 ```
 
 ### Copia de seguridad
@@ -61,6 +89,8 @@ cd /opt/snackmary && set -a && . ./.env && set +a
 docker exec snackmary-db mariadb-dump -uroot -p"$DB_ROOT_PASS" "$DB_NAME" > respaldo_$(date +%F).sql
 ```
 
+Las fotos de productos están en el volumen `snackmary_uploads`.
+
 ## Instalación en hosting compartido
 
 1. Sube todos los archivos a `htdocs`.
@@ -68,7 +98,7 @@ docker exec snackmary-db mariadb-dump -uroot -p"$DB_ROOT_PASS" "$DB_NAME" > resp
    Este archivo **no** se sube al repositorio (está en `.gitignore`).
 3. Base de datos (en phpMyAdmin):
    - **Si ya tienes el sistema funcionando:** haz una copia de seguridad (Exportar) y luego ejecuta
-     `database/migracion_v2.sql` en la pestaña SQL. Tus ventas, productos y clientes se conservan.
+     `database/migracion_v2.sql` y luego `database/migracion_v3.sql` en la pestaña SQL. Tus ventas, productos y clientes se conservan.
    - **Si es una instalación nueva:** importa `database/instalacion.sql` en una base vacía.
      Usuario inicial: `admin` / `admin`. Cámbiala apenas ingreses.
 4. Entra a **Configuración** y escribe el número de WhatsApp del negocio.

@@ -1,0 +1,116 @@
+/* =====================================================================
+   Snack Mary - estilos para uso táctil en tablet
+   Botones y campos grandes (mín. 44-48 px), tarjetas legibles a distancia.
+   ===================================================================== */
+:root {
+    --sm-rojo: #e21e24;
+    --sm-rojo-oscuro: #b5161b;
+    --sm-verde: #25D366;
+    --sm-fondo: #f3f4f6;
+    --sm-radio: 12px;
+}
+
+body { font-size: 16px; background: var(--sm-fondo); -webkit-tap-highlight-color: transparent; }
+#layoutSidenav_content { background: var(--sm-fondo); }
+
+/* Barra superior y menú */
+.sb-topnav { background: #1f1f1f !important; height: 60px; }
+.sb-topnav .navbar-brand { display: flex; align-items: center; font-weight: 700; letter-spacing: .5px; }
+#sidebarToggle { font-size: 1.4rem; padding: .5rem 1rem; }
+.sb-sidenav-dark { background: #1f1f1f; }
+.sb-sidenav .nav-link { padding: .85rem 1.1rem; font-size: 1.02rem; }
+.sb-sidenav-dark .sb-sidenav-menu .nav-link.active { color: #fff; background: var(--sm-rojo); }
+.sb-sidenav-dark .sb-sidenav-menu .nav-link.active .sb-nav-link-icon { color: #fff; }
+
+/* Controles táctiles */
+.btn { min-height: 44px; border-radius: 10px; font-weight: 500; }
+.btn-sm { min-height: 38px; padding: .35rem .75rem; font-size: .95rem; }
+.btn-lg { min-height: 56px; font-size: 1.2rem; }
+.form-control, .custom-select { min-height: 48px; font-size: 1rem; border-radius: 10px; }
+.form-control-sm { min-height: 40px; }
+select.form-control { padding-right: 2rem; }
+.custom-control-label { padding-top: 2px; }
+.custom-control-label::before, .custom-control-label::after { width: 1.4rem; height: 1.4rem; top: .05rem; }
+.custom-control { padding-left: 2rem; min-height: 1.8rem; }
+
+.btn-primary { background: var(--sm-rojo); border-color: var(--sm-rojo); }
+.btn-primary:hover, .btn-primary:focus, .btn-primary:active { background: var(--sm-rojo-oscuro) !important; border-color: var(--sm-rojo-oscuro) !important; }
+.btn-outline-primary { color: var(--sm-rojo); border-color: var(--sm-rojo); }
+.btn-outline-primary:hover, .btn-outline-primary.active { background: var(--sm-rojo) !important; border-color: var(--sm-rojo) !important; color: #fff !important; }
+.bg-primary { background-color: var(--sm-rojo) !important; }
+.btn-whatsapp { background: var(--sm-verde); color: #fff; }
+.btn-whatsapp:hover { background: #1ebe57; color: #fff; }
+
+.card { border: 0; border-radius: var(--sm-radio); box-shadow: 0 1px 3px rgba(0, 0, 0, .08); }
+.card-header:first-child { border-radius: var(--sm-radio) var(--sm-radio) 0 0; }
+.table td, .table th { vertical-align: middle; padding: .8rem; }
+.modal-content { border-radius: var(--sm-radio); }
+.badge { font-size: .85em; }
+
+/* ---------- Nueva venta (POS) ---------- */
+.pos-categorias { display: flex; gap: .5rem; overflow-x: auto; padding-bottom: .5rem; -webkit-overflow-scrolling: touch; }
+.pos-categorias .btn { white-space: nowrap; border-radius: 30px; padding-left: 1.2rem; padding-right: 1.2rem; }
+.pos-grilla { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: .75rem; max-height: calc(100vh - 330px); overflow-y: auto; padding: 2px; }
+.pos-producto { background: #fff; border: 2px solid transparent; border-radius: var(--sm-radio); box-shadow: 0 1px 3px rgba(0, 0, 0, .1); padding: 0; text-align: left; overflow: hidden; display: flex; flex-direction: column; transition: transform .08s; cursor: pointer; }
+.pos-producto:active { transform: scale(.96); border-color: var(--sm-rojo); }
+.pos-producto .foto { height: 90px; background: #f0e6e6 center/cover no-repeat; display: flex; align-items: center; justify-content: center; color: var(--sm-rojo); font-size: 2rem; }
+.pos-producto .info { padding: .5rem .6rem; flex: 1; display: flex; flex-direction: column; justify-content: space-between; }
+.pos-producto .nombre { font-weight: 600; font-size: .95rem; line-height: 1.2; }
+.pos-producto .precio { color: var(--sm-rojo); font-weight: 700; margin-top: .25rem; }
+.pos-producto .stock { font-size: .75rem; color: #888; }
+.pos-producto.agotado { opacity: .45; pointer-events: none; }
+.pos-carrito { position: sticky; top: 70px; }
+.pos-carrito .table td { padding: .5rem; }
+.pos-total { font-size: 1.6rem; font-weight: 700; }
+
+/* ---------- Mesas ---------- */
+.mesa-card { min-height: 170px; }
+.mesa-libre { border: 2px solid #28a745 !important; }
+
+/* ---------- Pedidos ---------- */
+.pedido-card { border-left: 6px solid #6c757d; }
+.pedido-card.border-warning { border-left-color: #ffc107; }
+.pedido-card.border-info { border-left-color: #17a2b8; }
+.pedido-card.border-primary { border-left-color: #007bff; }
+.pedido-card.border-dark { border-left-color: #343a40; }
+.pedido-card .list-unstyled li { font-size: .95rem; padding: 2px 0; }
+.pedido-card .card-footer .btn { margin-bottom: .25rem; }
+.pedido-web { box-shadow: 0 0 0 3px #25D366; }
+@keyframes parpadeo { 50% { box-shadow: 0 0 0 6px rgba(37, 211, 102, .35); } }
+.pedido-web.nuevo { animation: parpadeo 1s ease-in-out 6; }
+
+/* ---------- Cocina ---------- */
+.cocina-body { background: #111; }
+.cocina-body #layoutSidenav_content { background: #111; }
+.cocina-body footer { display: none; }
+.cocina-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
+.cocina-ticket { background: #fff; border-radius: var(--sm-radio); overflow: hidden; display: flex; flex-direction: column; }
+.cocina-ticket header { padding: .75rem 1rem; color: #fff; display: flex; justify-content: space-between; align-items: center; font-weight: 700; font-size: 1.15rem; }
+.cocina-ticket.pendiente header { background: #6c757d; }
+.cocina-ticket.preparando header { background: #fd7e14; }
+.cocina-ticket.tarde header { background: #dc3545; }
+.cocina-ticket ul { list-style: none; margin: 0; padding: .75rem 1rem; flex: 1; font-size: 1.25rem; }
+.cocina-ticket li { padding: .3rem 0; border-bottom: 1px dashed #ddd; }
+.cocina-ticket li b { display: inline-block; min-width: 2.2rem; }
+.cocina-ticket li.anterior { color: #aaa; text-decoration: line-through; font-size: 1rem; }
+.cocina-ticket li .etiqueta-nuevo { background: #28a745; color: #fff; border-radius: 6px; padding: 0 .4rem; font-size: .8rem; margin-left: .4rem; }
+.cocina-ticket .nota { background: #fff3cd; padding: .5rem 1rem; font-size: 1.05rem; }
+.cocina-ticket .acciones { display: flex; }
+.cocina-ticket .acciones .btn { flex: 1; border-radius: 0; min-height: 64px; font-size: 1.2rem; }
+
+/* ---------- Caja y reportes ---------- */
+.kpi { background: #fff; border-radius: var(--sm-radio); padding: 1rem 1.25rem; box-shadow: 0 1px 3px rgba(0, 0, 0, .08); height: 100%; }
+.kpi .titulo { font-size: .8rem; text-transform: uppercase; color: #777; letter-spacing: .5px; }
+.kpi .valor { font-size: 1.7rem; font-weight: 700; }
+
+/* ---------- Repartidor ---------- */
+.entrega-card .btn { min-height: 56px; font-size: 1.1rem; }
+
+/* Avisos (SweetAlert) más grandes en tablet */
+.swal2-popup { font-size: 1.05rem !important; }
+
+@media print {
+    #layoutSidenav_nav, .sb-topnav, footer, .no-imprimir { display: none !important; }
+    #layoutSidenav_content { padding: 0 !important; margin: 0 !important; }
+    body, #layoutSidenav_content { background: #fff !important; }
+}

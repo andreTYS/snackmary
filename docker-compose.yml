@@ -11,6 +11,9 @@ services:
       DB_NAME: ${DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASS: ${DB_PASS}
+    volumes:
+      # Fotos de productos (se conservan al actualizar)
+      - uploads:/var/www/html/uploads/productos
     depends_on:
       db:
         condition: service_healthy
@@ -55,6 +58,7 @@ services:
 
 volumes:
   db_data:
+  uploads:
 
 networks:
   interna:
