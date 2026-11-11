@@ -1,0 +1,19 @@
+
+# BEGIN InfinityFree Managed Code
+# DO NOT EDIT - MANAGED BY THE MEMBERS AREA
+php_value display_errors Off
+php_value date.timezone America/Lima
+# END InfinityFree Managed Code
+
+Options -Indexes
+
+# Bloquear archivos sensibles
+<FilesMatch "(^config\.local(\.example)?\.php$|^conexion\.php$|\.sql$|\.md$|^\.git)">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
