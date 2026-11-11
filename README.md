@@ -15,7 +15,53 @@ PHP + MySQL/MariaDB, sin frameworks (funciona en hosting gratuito como InfinityF
 | **Clientes / Productos / Usuarios** | Registro, edición, desactivar y reactivar. Permisos por usuario. |
 | **Configuración** | Datos del negocio, número de WhatsApp y código de país. |
 
-## Instalación
+## Despliegue en VPS (Docker + Traefik)
+
+Se levantan dos contenedores: `snackmary-app` (PHP 8.3 + Apache) y `snackmary-db` (MariaDB 11, con volumen propio).
+Traefik publica el sitio en `https://snackmary.moqueguasoft.com` con certificado SSL automático.
+
+1. **DNS:** registro `A` → nombre `snackmary` → `76.13.234.161` → TTL `300`.
+2. **Revisa cómo está tu Traefik** (red, entrypoint y certresolver):
+   ```bash
+   docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Ports}}'
+   docker network ls
+   docker inspect NOMBRE_DE_OTRA_WEB --format '{{range $k,$v := .Config.Labels}}{{$k}}={{$v}}{{"\n"}}{{end}}' | grep traefik
+   ```
+3. **Clona y configura:**
+   ```bash
+   cd /opt && git clone https://github.com/andreTYS/snackmary.git && cd snackmary
+   cp .env.example .env && nano .env
+   ```
+4. **Levanta:** `docker compose up -d --build`
+
+La primera vez la base se crea sola con `database/instalacion.sql` (usuario `admin` / `admin`).
+Para traer los datos de InfinityFree en su lugar, mira la sección siguiente.
+
+### Pasar los datos de InfinityFree al VPS
+
+```bash
+# 1) Exporta la base desde phpMyAdmin de InfinityFree y súbela al VPS como /opt/snackmary/respaldo.sql
+# 2) Reemplaza la base nueva por tus datos y aplica la migración
+cd /opt/snackmary && set -a && . ./.env && set +a
+docker exec -i snackmary-db mariadb -uroot -p"$DB_ROOT_PASS" -e "DROP DATABASE $DB_NAME; CREATE DATABASE $DB_NAME; GRANT ALL ON $DB_NAME.* TO '$DB_USER'@'%';"
+docker exec -i snackmary-db mariadb -uroot -p"$DB_ROOT_PASS" "$DB_NAME" < respaldo.sql
+docker exec -i snackmary-db mariadb -uroot -p"$DB_ROOT_PASS" "$DB_NAME" < database/migracion_v2.sql
+```
+
+### Actualizar a una nueva versión
+
+```bash
+cd /opt/snackmary && git pull && docker compose up -d --build
+```
+
+### Copia de seguridad
+
+```bash
+cd /opt/snackmary && set -a && . ./.env && set +a
+docker exec snackmary-db mariadb-dump -uroot -p"$DB_ROOT_PASS" "$DB_NAME" > respaldo_$(date +%F).sql
+```
+
+## Instalación en hosting compartido
 
 1. Sube todos los archivos a `htdocs`.
 2. Copia `config.local.example.php` como **`config.local.php`** y pon los datos de tu base de datos.
