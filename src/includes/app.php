@@ -233,7 +233,7 @@ function csrf_check(): void
 {
     $enviado = $_POST['csrf'] ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
     if (!is_string($enviado) || !hash_equals(csrf_token(), $enviado)) {
-        http_response_code(419);
+        http_response_code(403);
         if (es_ajax()) {
             exit(json_encode(['ok' => false, 'msg' => 'Sesión inválida, recarga la página']));
         }

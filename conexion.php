@@ -8,11 +8,21 @@
 date_default_timezone_set('America/Lima');
 
 $archivoConfig = __DIR__ . '/config.local.php';
-if (!is_file($archivoConfig)) {
+if (is_file($archivoConfig)) {
+    $cfg = require $archivoConfig;
+} elseif (getenv('DB_HOST') !== false) {
+    // En Docker la configuración llega por variables de entorno
+    $cfg = [
+        'host'  => getenv('DB_HOST'),
+        'user'  => getenv('DB_USER'),
+        'pass'  => getenv('DB_PASS'),
+        'db'    => getenv('DB_NAME'),
+        'debug' => getenv('APP_DEBUG') === '1',
+    ];
+} else {
     http_response_code(500);
     exit('Falta el archivo config.local.php. Copia config.local.example.php y completa los datos de la base de datos.');
 }
-$cfg = require $archivoConfig;
 
 ini_set('display_errors', !empty($cfg['debug']) ? '1' : '0');
 

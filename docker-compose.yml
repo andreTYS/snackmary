@@ -1,0 +1,63 @@
+name: snackmary
+
+services:
+  app:
+    build: .
+    image: snackmary-app:latest
+    container_name: snackmary-app
+    restart: unless-stopped
+    environment:
+      DB_HOST: db
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - interna
+      - traefik
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=${TRAEFIK_NETWORK}
+      - traefik.http.routers.snackmary.rule=Host(`${DOMINIO}`)
+      - traefik.http.routers.snackmary.entrypoints=${TRAEFIK_ENTRYPOINT}
+      - traefik.http.routers.snackmary.tls=true
+      - traefik.http.routers.snackmary.tls.certresolver=${TRAEFIK_CERTRESOLVER}
+      - traefik.http.services.snackmary.loadbalancer.server.port=80
+      # http -> https (igual que los demás sitios del VPS)
+      - traefik.http.middlewares.snackmary-https.redirectscheme.scheme=https
+      - traefik.http.routers.snackmary-http.rule=Host(`${DOMINIO}`)
+      - traefik.http.routers.snackmary-http.entrypoints=${TRAEFIK_ENTRYPOINT_HTTP}
+      - traefik.http.routers.snackmary-http.middlewares=snackmary-https
+
+  db:
+    image: mariadb:11
+    container_name: snackmary-db
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: ${DB_NAME}
+      MARIADB_USER: ${DB_USER}
+      MARIADB_PASSWORD: ${DB_PASS}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASS}
+      TZ: America/Lima
+    volumes:
+      - db_data:/var/lib/mysql
+      # Solo se ejecuta la PRIMERA vez (volumen vacío): instala la base nueva
+      - ./database/instalacion.sql:/docker-entrypoint-initdb.d/01-instalacion.sql:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - interna
+
+volumes:
+  db_data:
+
+networks:
+  interna:
+  traefik:
+    external: true
+    name: ${TRAEFIK_NETWORK}
