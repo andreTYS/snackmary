@@ -22,6 +22,9 @@ Pensado para usarse en una **tablet** (botones grandes, pantalla completa, insta
 | **Carta pública** (`carta.php`) | El cliente elige, pone sus datos (o comparte su ubicación GPS) y el pedido **entra directo al sistema**. Luego puede avisar por WhatsApp. Tiene protección anti-spam. |
 | **Ventas** | Historial por fechas, ticket PDF, WhatsApp y anulación. |
 | **Configuración** | Datos del negocio, WhatsApp, costo de delivery y activar/pausar la carta. |
+| **Impresora** | Tickets y comandas en impresoras térmicas **Bluetooth** de 58/80 mm: con la app **RawBT** (Android, cualquier impresora), **Bluetooth directo** desde Chrome (impresoras BLE) o PDF. Impresión automática al vender. Se configura en cada tablet. |
+| **Ayuda** | Guías de uso dentro de la app, ordenadas según el puesto de quien entra (cajero, cocina, repartidor, admin), con buscador. |
+| **Auditoría** | Solo admin: quién ingresó, falló la clave, anuló, cambió precios o permisos, abrió o cerró caja. |
 
 ### Permisos por rol
 
@@ -69,6 +72,7 @@ docker exec -i snackmary-db mariadb -uroot -p"$DB_ROOT_PASS" "$DB_NAME" < respal
 docker exec -i snackmary-db mariadb -uroot -p"$DB_ROOT_PASS" "$DB_NAME" < database/migracion_v2.sql
 docker exec -i snackmary-db mariadb -uroot -p"$DB_ROOT_PASS" "$DB_NAME" < database/migracion_v3.sql
 docker exec -i snackmary-db mariadb -uroot -p"$DB_ROOT_PASS" "$DB_NAME" < database/migracion_v4.sql
+docker exec -i snackmary-db mariadb -uroot -p"$DB_ROOT_PASS" "$DB_NAME" < database/migracion_v5.sql
 ```
 
 ### Actualizar a una nueva versión
@@ -81,10 +85,10 @@ Si la versión trae cambios en la base de datos (archivo `database/migracion_vN.
 
 ```bash
 cd /opt/snackmary && set -a && . ./.env && set +a
-docker exec -i snackmary-db mariadb -uroot -p"$DB_ROOT_PASS" "$DB_NAME" < database/migracion_v4.sql
+docker exec -i snackmary-db mariadb -uroot -p"$DB_ROOT_PASS" "$DB_NAME" < database/migracion_v5.sql
 ```
 
-Cada archivo de migración se aplica una sola vez y en orden (v2 → v3 → v4); si ya aplicaste uno, aplicarlo de nuevo no rompe nada.
+Cada archivo de migración se aplica una sola vez y en orden (v2 → v3 → v4 → v5); si ya aplicaste uno, aplicarlo de nuevo no rompe nada.
 
 ### Copia de seguridad
 
@@ -95,6 +99,36 @@ docker exec snackmary-db mariadb-dump -uroot -p"$DB_ROOT_PASS" "$DB_NAME" > resp
 
 Las fotos de productos están en el volumen `snackmary_uploads`.
 
+### Instancia de demostración (para mostrar el sistema a clientes)
+
+Una segunda copia del sistema, con **datos de prueba que se reinician cada noche**, en su propio dominio y con su propia base de datos (no toca los datos reales).
+
+1. **DNS:** registro `A` → nombre `snackmary-demo` → `76.13.234.161` → TTL `300`.
+2. **Configura y levanta** (en la misma carpeta del sistema):
+   ```bash
+   cd /opt/snackmary && cp .env.demo.example .env.demo && nano .env.demo
+   docker compose --env-file .env.demo -p snackmary-demo up -d --build
+   ```
+3. **Carga los datos de prueba** (la primera vez, y cuando quieras reiniciar la demo):
+   ```bash
+   docker exec snackmary-demo-app php /var/www/html/database/demo_datos.php
+   ```
+4. **Reinicio automático cada noche a las 4:10 a. m.:**
+   ```bash
+   (crontab -l 2>/dev/null; echo '10 4 * * * docker exec snackmary-demo-app php /var/www/html/database/demo_datos.php >/dev/null 2>&1') | crontab -
+   ```
+
+En la demo, la pantalla de ingreso muestra los usuarios de prueba (se entra con un toque) y no se pueden cambiar contraseñas ni desactivar esos usuarios:
+
+| Usuario | Contraseña | Puesto |
+|---|---|---|
+| `admin` | `Demo2026` | Administrador |
+| `cajero` | `Cajero2026` | Cajero / mozo |
+| `cocina` | `Cocina2026` | Cocina |
+| `moto` | `Moto2026` | Repartidor |
+
+`demo_datos.php` **borra toda la base** antes de cargar los datos: solo funciona con `APP_DEMO=1` (o con `--forzar`). Nunca lo ejecutes en la instancia real.
+
 ## Instalación en hosting compartido
 
 1. Sube todos los archivos a `htdocs`.
@@ -102,7 +136,7 @@ Las fotos de productos están en el volumen `snackmary_uploads`.
    Este archivo **no** se sube al repositorio (está en `.gitignore`).
 3. Base de datos (en phpMyAdmin):
    - **Si ya tienes el sistema funcionando:** haz una copia de seguridad (Exportar) y luego ejecuta
-     `database/migracion_v2.sql`, luego `database/migracion_v3.sql` y `database/migracion_v4.sql` en la pestaña SQL. Tus ventas, productos y clientes se conservan.
+     `database/migracion_v2.sql`, `migracion_v3.sql`, `migracion_v4.sql` y `migracion_v5.sql` (en ese orden) en la pestaña SQL. Tus ventas, productos y clientes se conservan.
    - **Si es una instalación nueva:** importa `database/instalacion.sql` en una base vacía.
      Usuario inicial: `admin` / `admin`. Cámbiala apenas ingreses.
 4. Entra a **Configuración** y escribe el número de WhatsApp del negocio.
@@ -111,11 +145,17 @@ Las fotos de productos están en el volumen `snackmary_uploads`.
 
 Las contraseñas antiguas (MD5) se convierten solas a un formato seguro la primera vez que cada usuario inicia sesión.
 
-## Seguridad (cambios de la versión 2)
+## Seguridad
 
-- Credenciales fuera del código (`config.local.php`).
+- Credenciales fuera del código (`config.local.php` o variables de entorno).
 - Todas las consultas usan sentencias preparadas: no hay inyección SQL.
-- Contraseñas con `password_hash` (bcrypt). Login con límite de intentos.
+- Contraseñas con `password_hash` (bcrypt), mínimo 8 caracteres; la de fábrica o una muy común **obliga a cambiarla** al ingresar.
+- Límite de intentos en la base de datos: 5 fallos por usuario (o 20 por IP) en 15 minutos bloquean el ingreso. La IP real se toma de Traefik sin confiar en lo que envía el cliente.
+- Sesión con cookie `Secure` + `HttpOnly` + `SameSite`, cierre por inactividad (12 h), y un usuario desactivado pierde su sesión al instante.
+- Cabeceras de seguridad en Apache: Content-Security-Policy (solo recursos propios), X-Frame-Options, nosniff, HSTS, Referrer-Policy, Permissions-Policy.
+- El contenedor deja el código **de solo lectura** para Apache; solo `uploads/` es escribible y ahí nunca se ejecuta PHP.
+- Librerías JavaScript actualizadas: jQuery 3.7.1, jQuery UI 1.13.3, DataTables 1.13.11 y Bootstrap 4.6.2. Se corrigen varias vulnerabilidades XSS conocidas (CVE-2021-41182/41183/41184, CVE-2022-31160, CVE-2020-28458, CVE-2021-23445) y se quita un jQuery 1.12.4 que el servidor publicaba sin usarse.
+- Registro de **auditoría** de acciones sensibles.
 - Permisos que realmente bloquean (antes la página seguía ejecutándose tras la redirección).
 - Token CSRF en todos los formularios y acciones AJAX; las eliminaciones son solo por POST.
 - Todo el texto se escapa al mostrarse (sin XSS).

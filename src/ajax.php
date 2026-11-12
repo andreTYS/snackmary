@@ -319,22 +319,8 @@ if ($accion === 'procesar') {
 }
 
 if ($accion === 'cambiar_clave') {
-    $actual = (string)($_POST['actual'] ?? '');
-    $nueva = (string)($_POST['nueva'] ?? '');
-    if ($actual === '' || $nueva === '') {
-        responder(['ok' => false, 'msg' => 'Los campos están vacíos']);
-    }
-    if (strlen($nueva) < 6) {
-        responder(['ok' => false, 'msg' => 'La nueva contraseña debe tener al menos 6 caracteres']);
-    }
-    $hash = (string)db_val('SELECT clave FROM usuario WHERE idusuario = ?', [$uid]);
-    $correcta = password_verify($actual, $hash) || (strlen($hash) === 32 && hash_equals($hash, md5($actual)));
-    if (!$correcta) {
-        responder(['ok' => false, 'msg' => 'La contraseña actual es incorrecta']);
-    }
-    db_exec('UPDATE usuario SET clave = ? WHERE idusuario = ?', [password_hash($nueva, PASSWORD_DEFAULT), $uid]);
-    unset($_SESSION['clave_insegura']);
-    responder(['ok' => true, 'msg' => 'Contraseña modificada']);
+    // Se mantiene por compatibilidad; el cambio de contraseña ahora está en perfil.php
+    responder(['ok' => false, 'msg' => 'Usa la página Cambiar contraseña del menú de usuario']);
 }
 
 responder(['ok' => false, 'msg' => 'Acción no válida']);

@@ -5,16 +5,9 @@
  */
 ob_start();
 
-if (session_status() === PHP_SESSION_NONE) {
-    session_set_cookie_params([
-        'httponly' => true,
-        'samesite' => 'Lax',
-        'secure'   => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
-    ]);
-    session_start();
-}
-
+require_once __DIR__ . '/seguridad.php';
 require_once __DIR__ . '/../../conexion.php';
+iniciar_sesion();
 
 /* ---------- Constantes del negocio ---------- */
 const TIPOS_PEDIDO = [
@@ -172,12 +165,41 @@ function base_src(): string
 function require_login(): void
 {
     if (empty($_SESSION['active']) || usuario_id() <= 0) {
-        if (es_ajax()) {
-            http_response_code(401);
-            exit(json_encode(['ok' => false, 'msg' => 'Sesión expirada']));
-        }
-        redirigir(base_src() . '../');
+        no_autenticado();
     }
+    // El usuario debe seguir activo (si lo desactivan, su sesión abierta deja de servir)
+    static $verificado = false;
+    if (!$verificado) {
+        $activo = db_val('SELECT estado FROM usuario WHERE idusuario = ?', [usuario_id()]);
+        if ((int)$activo !== 1) {
+            $_SESSION = [];
+            session_regenerate_id(true);
+            no_autenticado();
+        }
+        $verificado = true;
+    }
+    // Contraseña por defecto o débil: hay que cambiarla antes de seguir
+    if (!empty($_SESSION['clave_insegura']) && !modo_demo()) {
+        $pagina = basename($_SERVER['SCRIPT_NAME'] ?? '');
+        $permitida = in_array($pagina, ['perfil.php', 'salir.php'], true)
+            || ($pagina === 'ajax.php' && ($_POST['action'] ?? '') === 'cambiar_clave');
+        if (!$permitida) {
+            if (es_ajax()) {
+                http_response_code(403);
+                exit(json_encode(['ok' => false, 'msg' => 'Primero cambia tu contraseña']));
+            }
+            redirigir(base_src() . 'perfil.php');
+        }
+    }
+}
+
+function no_autenticado(): void
+{
+    if (es_ajax()) {
+        http_response_code(401);
+        exit(json_encode(['ok' => false, 'msg' => 'Sesión expirada. Vuelve a ingresar.']));
+    }
+    redirigir(base_src() . '../');
 }
 
 function tiene_permiso(string $permiso): bool
@@ -234,6 +256,7 @@ function csrf_check(): void
     $enviado = $_POST['csrf'] ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
     if (!is_string($enviado) || !hash_equals(csrf_token(), $enviado)) {
         http_response_code(403);
+        auditar('csrf_rechazado', basename($_SERVER['SCRIPT_NAME'] ?? ''));
         if (es_ajax()) {
             exit(json_encode(['ok' => false, 'msg' => 'Sesión inválida, recarga la página']));
         }

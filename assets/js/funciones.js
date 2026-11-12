@@ -227,6 +227,12 @@ function iniciarVentas() {
                     aviso('error', res.msg, 3500);
                     return;
                 }
+                // Impresión automática (según la configuración de la impresora de esta tablet)
+                const imp = Impresora.config();
+                const auto = [];
+                if (imp.autoTicket) auto.push('ticket');
+                if (imp.autoComanda && res.cocina) auto.push('comanda');
+                if (auto.length && imp.metodo !== 'pdf') Impresora.imprimir(res.id_venta, auto);
                 const titulo = res.agregado ? 'Agregado al pedido #' + res.id_venta : 'Pedido #' + res.id_venta + ' listo';
                 let botones = '<div class="d-flex flex-wrap justify-content-center">';
                 botones += `<button type="button" class="btn btn-secondary btn-lg m-1" onclick="generarPDF(${res.id_venta})"><i class="fas fa-receipt"></i> Ticket</button>`;
@@ -239,7 +245,7 @@ function iniciarVentas() {
                     html: botones,
                     confirmButtonText: 'Nueva venta',
                     confirmButtonColor: '#28a745'
-                }).then(() => location.reload());
+                }).then(() => nuevaVenta(res));
             },
             error: function (xhr) {
                 boton.disabled = false;
@@ -249,6 +255,24 @@ function iniciarVentas() {
     });
 
     listar();
+}
+
+/** Deja la pantalla lista para otra venta sin recargar (así no se pierde la impresora Bluetooth). */
+function nuevaVenta(res) {
+    document.getElementById('btn_generar').disabled = false;
+    $('#nota, #nom_cliente, #tel_cliente, #dir_cliente, #direccion_entrega, #telefono_entrega').val('');
+    $('#idcliente').val(1);
+    $('#costo_envio').val(0);
+    $('#metodo_pago').val('efectivo');
+    $('#cobrarAhora').prop('checked', true);
+    if (res && res.tipo === 'mesa') {
+        const op = $('#id_mesa option:selected');
+        op.text(op.text().replace(/ · (libre|ocupada.*)$/, '') + ' · ocupada (se suma al #' + res.id_venta + ')');
+    }
+    listar();
+    // Refrescar stock de la grilla
+    $.getJSON('ajax.php', { grilla: 1 }, function (lista) { productosPOS = lista; pintarGrilla(); });
+    window.scrollTo(0, 0);
 }
 
 function filtrarProductos() {
@@ -335,11 +359,11 @@ function calcular() {
 }
 
 function generarPDF(idVenta) {
-    window.open('pdf/generar.php?v=' + encodeURIComponent(idVenta), '_blank');
+    Impresora.imprimir(idVenta, 'ticket');
 }
 
 function comandaPDF(idVenta) {
-    window.open('pdf/comanda.php?v=' + encodeURIComponent(idVenta), '_blank');
+    Impresora.imprimir(idVenta, 'comanda');
 }
 
 /* ------------------------- Gráficos del inicio ------------------------- */
@@ -370,27 +394,4 @@ if (document.getElementById('polarChart')) {
             options: { legend: { position: 'top' }, responsive: true }
         });
     }, 'json');
-}
-
-/* ------------------------- Cambiar contraseña ------------------------- */
-function btnCambiar(e) {
-    e.preventDefault();
-    const actual = document.getElementById('actual').value;
-    const nueva = document.getElementById('nueva').value;
-    if (actual === '' || nueva === '') {
-        aviso('error', 'Los campos están vacíos');
-        return;
-    }
-    $.ajax({
-        url: 'ajax.php', type: 'POST', dataType: 'json',
-        data: { action: 'cambiar_clave', actual: actual, nueva: nueva },
-        success: function (res) {
-            aviso(res.ok ? 'success' : 'error', res.msg, 2500);
-            if (res.ok) {
-                document.getElementById('frmPass').reset();
-                $('#nuevo_pass').modal('hide');
-            }
-        },
-        error: errorAjax
-    });
 }

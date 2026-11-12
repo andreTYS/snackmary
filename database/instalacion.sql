@@ -4,7 +4,7 @@
 -- Si ya tienes datos, usa migracion_v2.sql en su lugar.
 --
 -- Usuario inicial: admin / admin  (cámbiala apenas ingreses)
--- Al final se aplica la estructura de las versiones 3 y 4 (migracion_v3 y v4).
+-- Al final se aplica la estructura de las versiones 3, 4 y 5 (migracion_v3, v4 y v5).
 -- =====================================================================
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
@@ -270,3 +270,30 @@ ALTER TABLE `detalle_venta`
   ADD COLUMN IF NOT EXISTS `opciones` varchar(255) NOT NULL DEFAULT '',
   ADD COLUMN IF NOT EXISTS `opciones_txt` varchar(255) NOT NULL DEFAULT '',
   ADD COLUMN IF NOT EXISTS `consumo` varchar(255) NOT NULL DEFAULT '';
+
+-- ===================== Versión 5 =====================
+
+-- Intentos de inicio de sesión (para bloquear fuerza bruta por usuario e IP)
+CREATE TABLE IF NOT EXISTS `login_intentos` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `usuario` varchar(50) NOT NULL,
+  `ip` varchar(45) NOT NULL,
+  `exito` tinyint(1) NOT NULL DEFAULT 0,
+  `fecha` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_usuario_fecha` (`usuario`, `fecha`),
+  KEY `idx_ip_fecha` (`ip`, `fecha`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_spanish_ci;
+
+-- Registro de acciones sensibles (quién hizo qué y cuándo)
+CREATE TABLE IF NOT EXISTS `auditoria` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `fecha` datetime NOT NULL DEFAULT current_timestamp(),
+  `id_usuario` int(11) DEFAULT NULL,
+  `accion` varchar(50) NOT NULL,
+  `detalle` varchar(255) NOT NULL DEFAULT '',
+  `ip` varchar(45) NOT NULL DEFAULT '',
+  PRIMARY KEY (`id`),
+  KEY `idx_fecha` (`fecha`),
+  KEY `idx_accion` (`accion`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_spanish_ci;

@@ -29,6 +29,9 @@ if (es_post()) {
                 borrar_imagen_producto($producto['imagen']);
                 $imagen = null;
             }
+            if ((float)$producto['precio'] !== (float)$precio) {
+                auditar('precio_cambiado', $descripcion . ': S/ ' . dinero($producto['precio']) . ' -> S/ ' . dinero($precio));
+            }
             db_exec(
                 'UPDATE producto SET codigo = ?, descripcion = ?, precio = ?, id_categoria = ?, controla_stock = ?, imagen = ? WHERE codproducto = ?',
                 [$codigo, $descripcion, $precio, $categoria, $controla, $imagen, $id]

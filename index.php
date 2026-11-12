@@ -1,31 +1,25 @@
 <?php
 ob_start();
-session_set_cookie_params([
-    'httponly' => true,
-    'samesite' => 'Lax',
-    'secure'   => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
-]);
-session_start();
+require_once __DIR__ . '/src/includes/seguridad.php';
+require_once __DIR__ . '/conexion.php';
+iniciar_sesion();
 if (!empty($_SESSION['active'])) {
     header('Location: src/');
     exit;
 }
-if (empty($_SESSION['csrf'])) {
-    $_SESSION['csrf'] = bin2hex(random_bytes(32));
-}
 $alert = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $usuario = trim((string)($_POST['usuario'] ?? ''));
+    $usuario = mb_substr(trim((string)($_POST['usuario'] ?? '')), 0, 50);
     $clave = (string)($_POST['clave'] ?? '');
-    $intentos = $_SESSION['intentos'] ?? 0;
+    $espera = $usuario !== '' ? login_bloqueado($usuario) : 0;
     if (!hash_equals($_SESSION['csrf'], (string)($_POST['csrf'] ?? ''))) {
         $alert = 'La sesión expiró, intenta de nuevo.';
     } elseif ($usuario === '' || $clave === '') {
         $alert = 'Ingrese su usuario y su clave';
-    } elseif ($intentos >= 5 && time() - ($_SESSION['ultimo_intento'] ?? 0) < 60) {
-        $alert = 'Demasiados intentos. Espera un minuto.';
+    } elseif ($espera > 0) {
+        $alert = 'Demasiados intentos fallidos. Espera ' . $espera . ' minutos o pide ayuda al administrador.';
+        auditar('login_bloqueado', $usuario, null);
     } else {
-        require_once 'conexion.php';
         $stmt = $conexion->prepare('SELECT idusuario, nombre, usuario, clave FROM usuario WHERE usuario = ? AND estado = 1 LIMIT 1');
         $stmt->bind_param('s', $usuario);
         $stmt->execute();
@@ -49,8 +43,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $up->bind_param('si', $nuevo, $dato['idusuario']);
                 $up->execute();
             }
+        } else {
+            // Mismo tiempo de respuesta exista o no el usuario (no revela qué usuarios existen)
+            password_verify($clave, '$2y$10$abcdefghijklmnopqrstuuJ8oXgYq0eG8vYq8L0x9fJ1h3l1i5S6e');
         }
 
+        registrar_intento($usuario, $valida);
         if ($valida) {
             session_regenerate_id(true);
             $_SESSION = [
@@ -59,13 +57,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'nombre' => $dato['nombre'],
                 'user'   => $dato['usuario'],
                 'csrf'   => bin2hex(random_bytes(32)),
-                'clave_insegura' => in_array($clave, ['admin', '123456', '12345', 'vendedor'], true),
+                'ultimo_uso' => time(),
+                'clave_insegura' => clave_debil($clave, $dato['usuario']),
             ];
+            auditar('login', '', (int)$dato['idusuario']);
             header('Location: src/');
             exit;
         }
-        $_SESSION['intentos'] = $intentos + 1;
-        $_SESSION['ultimo_intento'] = time();
+        auditar('login_fallido', $usuario, null);
         $alert = 'Usuario o contraseña incorrecta';
     }
 }
@@ -106,6 +105,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                             <label class="small mb-1" for="clave"><i class="fas fa-key"></i> Contraseña</label>
                                             <input class="form-control py-4" id="clave" name="clave" type="password" placeholder="Ingrese contraseña" autocomplete="current-password" required />
                                         </div>
+                                        <?php if (modo_demo()) { ?>
+                                            <div class="alert alert-info small">
+                                                <b><i class="fas fa-flask"></i> Demostración.</b> Toca un usuario para entrar. Los datos se reinician cada noche.
+                                                <div class="mt-2">
+                                                    <?php foreach (DEMO_USUARIOS as [$u, $c, $rol]) { ?>
+                                                        <button type="button" class="btn btn-sm btn-light border mb-1 usuario-demo" data-u="<?php echo htmlspecialchars($u); ?>" data-c="<?php echo htmlspecialchars($c); ?>"><b><?php echo htmlspecialchars($u); ?></b> · <?php echo htmlspecialchars($rol); ?></button>
+                                                    <?php } ?>
+                                                </div>
+                                            </div>
+                                        <?php } ?>
                                         <?php if ($alert) { ?>
                                             <div class="alert alert-danger" role="alert"><?php echo htmlspecialchars($alert); ?></div>
                                         <?php } ?>
@@ -129,9 +138,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </footer>
         </div>
     </div>
-    <script src="assets/js/jquery-3.6.0.min.js"></script>
+    <script src="assets/js/jquery-3.7.1.min.js"></script>
     <script src="assets/js/bootstrap.bundle.min.js"></script>
     <script src="assets/js/scripts.js"></script>
+    <script>
+        document.querySelectorAll('.usuario-demo').forEach(b => b.addEventListener('click', () => {
+            document.getElementById('usuario').value = b.dataset.u;
+            document.getElementById('clave').value = b.dataset.c;
+            b.closest('form').submit();
+        }));
+    </script>
 </body>
 
 </html>

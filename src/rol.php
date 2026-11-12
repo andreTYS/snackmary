@@ -9,6 +9,11 @@ if (!$usuario || $id === 1) {
     redirigir('usuarios.php');
 }
 $permisos = db_all('SELECT id, nombre FROM permisos ORDER BY id');
+if (es_post() && modo_demo() && $id <= 4) {
+    csrf_check();
+    flash('warning', 'En el modo demo no se pueden cambiar los permisos de los usuarios de prueba. Crea un usuario nuevo para probarlo.');
+    redirigir('rol.php?id=' . $id);
+}
 if (es_post()) {
     csrf_check();
     $validos = array_column($permisos, 'id');
@@ -19,6 +24,7 @@ if (es_post()) {
         db_exec('INSERT INTO detalle_permisos (id_usuario, id_permiso) VALUES (?, ?)', [$id, $permiso]);
     }
     $conexion->commit();
+    auditar('permisos_cambiados', $usuario['nombre'] . ': ' . implode(',', $elegidos));
     flash('success', 'Permisos actualizados');
     redirigir('rol.php?id=' . $id);
 }

@@ -87,6 +87,7 @@ if ($estado === 'anulado') {
     $conexion->begin_transaction();
     anular_pedido($id);
     $conexion->commit();
+    auditar('pedido_anulado', '#' . $id);
     terminar('success', 'Pedido #' . $id . ' anulado y stock devuelto', $volver);
 }
 

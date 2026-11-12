@@ -61,7 +61,7 @@ include_once "includes/header.php";
                 <ul>${items}</ul>
                 ${nota}
                 <div class="acciones">
-                    <a class="btn btn-light" href="pdf/comanda.php?v=${p.id}" target="_blank" title="Imprimir comanda" style="flex:0 0 72px"><i class="fas fa-print"></i></a>
+                    <a class="btn btn-light" href="pdf/comanda.php?v=${p.id}" target="_blank" title="Imprimir comanda" data-imprimir="comanda" data-id="${p.id}" style="flex:0 0 72px"><i class="fas fa-print"></i></a>
                     ${boton}
                 </div>
             </div>`;

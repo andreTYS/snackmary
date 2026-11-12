@@ -4,13 +4,17 @@ services:
   app:
     build: .
     image: snackmary-app:latest
-    container_name: snackmary-app
+    container_name: ${PREFIJO:-snackmary}-app
     restart: unless-stopped
     environment:
       DB_HOST: db
       DB_NAME: ${DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASS: ${DB_PASS}
+      # 1 = instancia de demostración (datos de prueba que se reinician cada noche)
+      APP_DEMO: ${APP_DEMO:-0}
+      # WhatsApp de soporte que aparece en Ayuda (ej: 51987654321)
+      SOPORTE_WHATSAPP: ${SOPORTE_WHATSAPP:-}
     volumes:
       # Fotos de productos (se conservan al actualizar)
       - uploads:/var/www/html/uploads/productos
@@ -23,20 +27,20 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=${TRAEFIK_NETWORK}
-      - traefik.http.routers.snackmary.rule=Host(`${DOMINIO}`)
-      - traefik.http.routers.snackmary.entrypoints=${TRAEFIK_ENTRYPOINT}
-      - traefik.http.routers.snackmary.tls=true
-      - traefik.http.routers.snackmary.tls.certresolver=${TRAEFIK_CERTRESOLVER}
-      - traefik.http.services.snackmary.loadbalancer.server.port=80
+      - traefik.http.routers.${PREFIJO:-snackmary}.rule=Host(`${DOMINIO}`)
+      - traefik.http.routers.${PREFIJO:-snackmary}.entrypoints=${TRAEFIK_ENTRYPOINT}
+      - traefik.http.routers.${PREFIJO:-snackmary}.tls=true
+      - traefik.http.routers.${PREFIJO:-snackmary}.tls.certresolver=${TRAEFIK_CERTRESOLVER}
+      - traefik.http.services.${PREFIJO:-snackmary}.loadbalancer.server.port=80
       # http -> https (igual que los demás sitios del VPS)
-      - traefik.http.middlewares.snackmary-https.redirectscheme.scheme=https
-      - traefik.http.routers.snackmary-http.rule=Host(`${DOMINIO}`)
-      - traefik.http.routers.snackmary-http.entrypoints=${TRAEFIK_ENTRYPOINT_HTTP}
-      - traefik.http.routers.snackmary-http.middlewares=snackmary-https
+      - traefik.http.middlewares.${PREFIJO:-snackmary}-https.redirectscheme.scheme=https
+      - traefik.http.routers.${PREFIJO:-snackmary}-http.rule=Host(`${DOMINIO}`)
+      - traefik.http.routers.${PREFIJO:-snackmary}-http.entrypoints=${TRAEFIK_ENTRYPOINT_HTTP}
+      - traefik.http.routers.${PREFIJO:-snackmary}-http.middlewares=${PREFIJO:-snackmary}-https
 
   db:
     image: mariadb:11
-    container_name: snackmary-db
+    container_name: ${PREFIJO:-snackmary}-db
     restart: unless-stopped
     environment:
       MARIADB_DATABASE: ${DB_NAME}

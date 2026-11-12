@@ -97,8 +97,8 @@ $cocinaTxt = ['pendiente' => 'Cocina: en cola', 'preparando' => 'Cocina: prepara
             <?php if ($p['tipo'] === 'mesa' && tiene_permiso('nueva_venta')) { ?>
                 <a href="ventas.php?tipo=mesa&amp;mesa=<?php echo (int)$p['id_mesa']; ?>" class="btn btn-sm btn-primary" title="Agregar productos"><i class="fas fa-plus"></i> Agregar</a>
             <?php } ?>
-            <a href="pdf/generar.php?v=<?php echo (int)$p['id']; ?>" target="_blank" class="btn btn-sm btn-secondary" title="Ticket"><i class="fas fa-receipt"></i></a>
-            <a href="pdf/comanda.php?v=<?php echo (int)$p['id']; ?>" target="_blank" class="btn btn-sm btn-warning" title="Comanda para cocina"><i class="fas fa-fire"></i></a>
+            <a href="pdf/generar.php?v=<?php echo (int)$p['id']; ?>" target="_blank" class="btn btn-sm btn-secondary" title="Ticket" data-imprimir="ticket" data-id="<?php echo (int)$p['id']; ?>"><i class="fas fa-receipt"></i></a>
+            <a href="pdf/comanda.php?v=<?php echo (int)$p['id']; ?>" target="_blank" class="btn btn-sm btn-warning" title="Comanda para cocina" data-imprimir="comanda" data-id="<?php echo (int)$p['id']; ?>"><i class="fas fa-fire"></i></a>
             <?php if ($tel) { ?>
                 <a href="<?php echo e(enlace_whatsapp($tel, mensaje_pedido($p))); ?>" target="_blank" rel="noopener" class="btn btn-sm btn-whatsapp" title="Enviar por WhatsApp"><i class="fab fa-whatsapp"></i></a>
             <?php } ?>

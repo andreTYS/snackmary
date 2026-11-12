@@ -16,6 +16,7 @@ if (es_post()) {
         $alert = alerta('danger', 'Ingresa un precio válido y una cantidad mayor a 0');
     } else {
         db_exec('UPDATE producto SET existencia = existencia + ?, precio = ? WHERE codproducto = ?', [(int)$cantidad, $precio, $id]);
+        auditar('stock_agregado', $producto['descripcion'] . ': +' . (int)$cantidad . ((float)$producto['precio'] !== (float)$precio ? ', precio S/ ' . dinero($producto['precio']) . ' -> S/ ' . dinero($precio) : ''));
         flash('success', 'Stock actualizado');
         redirigir('productos.php');
     }

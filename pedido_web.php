@@ -29,8 +29,7 @@ if (empty($negocio['carta_activa'])) {
     salir(['ok' => false, 'msg' => 'En este momento no estamos recibiendo pedidos por la carta.']);
 }
 
-$ip = substr((string)($_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? ''), 0, 45);
-$ip = trim(explode(',', $ip)[0]);
+$ip = ip_cliente();
 $recientes = (int)db_val("SELECT COUNT(*) FROM ventas WHERE origen = 'web' AND ip = ? AND fecha > NOW() - INTERVAL 10 MINUTE", [$ip]);
 if ($recientes >= 3 || ($_SESSION['pedidos_web'] ?? 0) >= 5) {
     salir(['ok' => false, 'msg' => 'Ya enviaste varios pedidos. Si necesitas algo más, escríbenos por WhatsApp.'], 429);
