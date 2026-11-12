@@ -23,6 +23,7 @@ if (es_post()) {
             'UPDATE configuracion SET nombre = ?, telefono = ?, email = ?, direccion = ?, whatsapp = ?, codigo_pais = ?, costo_envio = ?, carta_activa = ? WHERE id = ?',
             [$nombre, $telefono, $email, $direccion, substr($whatsapp, 0, 20), substr($codigoPais, 0, 5), $costoEnvio, $cartaActiva, $id]
         );
+        auditar('configuracion_cambiada');
         flash('success', 'Datos modificados');
         redirigir('config.php');
     }

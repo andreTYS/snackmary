@@ -16,6 +16,7 @@ if (es_post()) {
             $alert = alerta('danger', 'Ingresa el monto inicial (puede ser 0)');
         } else {
             db_exec('INSERT INTO cajas (id_usuario_apertura, monto_inicial) VALUES (?, ?)', [usuario_id(), $monto]);
+            auditar('caja_abierta', 'S/ ' . dinero($monto));
             flash('success', 'Caja abierta con S/ ' . dinero($monto));
         }
         if (!$alert) {
@@ -33,6 +34,7 @@ if (es_post()) {
                 'INSERT INTO caja_movimientos (id_caja, tipo, concepto, monto, metodo_pago, id_usuario) VALUES (?, ?, ?, ?, ?, ?)',
                 [(int)$abierta['id'], $tipo, $concepto, $monto, $metodo, usuario_id()]
             );
+            auditar('caja_' . $tipo, $concepto . ' S/ ' . dinero($monto) . ' (' . $metodo . ')');
             flash('success', ($tipo === 'ingreso' ? 'Ingreso' : 'Gasto') . ' registrado');
             redirigir('caja.php');
         }
@@ -48,6 +50,7 @@ if (es_post()) {
                 [usuario_id(), $resumen['efectivo_esperado'], $contado, json_encode($resumen, JSON_UNESCAPED_UNICODE), texto($_POST['observacion'] ?? '', 255), (int)$abierta['id']]
             );
             $dif = round($contado - $resumen['efectivo_esperado'], 2);
+            auditar('caja_cerrada', '#' . (int)$abierta['id'] . ' esperado S/ ' . dinero($resumen['efectivo_esperado']) . ', contado S/ ' . dinero($contado) . ', diferencia S/ ' . dinero($dif));
             flash($dif == 0 ? 'success' : 'warning', 'Caja cerrada. Diferencia: S/ ' . dinero($dif) . ($pendientes ? " · Quedan $pendientes pedidos sin cobrar" : ''));
             redirigir('caja.php?ver=' . (int)$abierta['id']);
         }

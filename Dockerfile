@@ -8,18 +8,16 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && a2enmod rewrite headers \
     # Permitir .htaccess (bloqueo de archivos sensibles)
-    && sed -ri 's/AllowOverride None/AllowOverride All/g' /etc/apache2/apache2.conf \
-    # No mostrar versión de Apache/PHP
-    && printf 'ServerTokens Prod\nServerSignature Off\n' > /etc/apache2/conf-enabled/zz-seguridad.conf \
-    # Evita el aviso AH00558 (Traefik es quien recibe el dominio real)
-    && echo 'ServerName localhost' > /etc/apache2/conf-enabled/servername.conf \
-    # En la carpeta de fotos nunca se ejecuta PHP (aunque alguien lograra subir un .php)
-    && printf '<Directory /var/www/html/uploads>\n    php_admin_flag engine off\n    Options -Indexes -ExecCGI\n    <FilesMatch "\\.(?!(jpg|webp)$)[^.]+$">\n        Require all denied\n    </FilesMatch>\n</Directory>\n' > /etc/apache2/conf-enabled/zz-uploads.conf
+    && sed -ri 's/AllowOverride None/AllowOverride All/g' /etc/apache2/apache2.conf
 
 COPY docker/php.ini /usr/local/etc/php/conf.d/snackmary.ini
+COPY docker/apache-seguridad.conf /etc/apache2/conf-enabled/zz-seguridad.conf
 
 WORKDIR /var/www/html
-COPY --chown=www-data:www-data . /var/www/html/
-# Archivos que no deben quedar dentro de la imagen
-RUN rm -rf .git docker docker-compose.yml Dockerfile .env .env.example config.local.php \
+# El código queda de solo lectura para Apache (www-data): aunque alguien lograra
+# ejecutar algo, no podría modificar el sistema. Solo uploads/ es escribible.
+COPY --chown=root:root . /var/www/html/
+RUN rm -rf .git docker docker-compose.yml Dockerfile .env .env.* config.local.php \
+    && find /var/www/html -type d -exec chmod 755 {} + \
+    && find /var/www/html -type f -exec chmod 644 {} + \
     && mkdir -p uploads/productos && chown -R www-data:www-data uploads

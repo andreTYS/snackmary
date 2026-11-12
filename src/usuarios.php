@@ -14,8 +14,8 @@ if (es_post()) {
         $alert = alerta('danger', 'Todos los campos son obligatorios');
     } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $alert = alerta('danger', 'El correo no es válido');
-    } elseif (strlen($clave) < 6) {
-        $alert = alerta('danger', 'La contraseña debe tener al menos 6 caracteres');
+    } elseif ($errorClave = validar_clave_nueva($clave, $user)) {
+        $alert = alerta('danger', $errorClave);
     } elseif (db_one('SELECT idusuario FROM usuario WHERE correo = ? OR usuario = ?', [$email, $user])) {
         $alert = alerta('warning', 'El correo o el nombre de usuario ya existe');
     } else {
@@ -23,6 +23,7 @@ if (es_post()) {
             'INSERT INTO usuario (nombre, correo, usuario, clave) VALUES (?, ?, ?, ?)',
             [$nombre, $email, $user, password_hash($clave, PASSWORD_DEFAULT)]
         );
+        auditar('usuario_creado', $user);
         flash('success', 'Usuario registrado. Ahora asígnale permisos con el botón de la llave.');
         redirigir('usuarios.php');
     }
@@ -58,7 +59,7 @@ include_once "includes/header.php";
                     </div>
                     <div class="form-group">
                         <label for="clave">Contraseña</label>
-                        <input type="password" class="form-control" placeholder="Mínimo 6 caracteres" name="clave" id="clave" minlength="6" autocomplete="new-password" required>
+                        <input type="password" class="form-control" placeholder="Mínimo 8 caracteres" name="clave" id="clave" minlength="8" autocomplete="new-password" required>
                     </div>
                     <input type="submit" value="Registrar" class="btn btn-primary">
                 </form>

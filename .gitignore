@@ -4,3 +4,6 @@ config.local.php
 .env
 uploads/productos/*
 !uploads/productos/.gitkeep
+.env.*
+!.env.example
+!.env.demo.example

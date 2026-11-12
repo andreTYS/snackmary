@@ -74,7 +74,7 @@ include_once "includes/header.php";
                     <td><?php echo e(METODOS_PAGO[$row['metodo_pago']] ?? $row['metodo_pago']); ?></td>
                     <td><?php echo badge_estado($row['estado']); ?></td>
                     <td class="text-nowrap">
-                        <a href="pdf/generar.php?v=<?php echo (int)$row['id']; ?>" target="_blank" class="btn btn-danger btn-sm" title="Ticket"><i class="fas fa-file-pdf"></i></a>
+                        <a href="pdf/generar.php?v=<?php echo (int)$row['id']; ?>" target="_blank" class="btn btn-danger btn-sm" title="Ticket" data-imprimir="ticket" data-id="<?php echo (int)$row['id']; ?>"><i class="fas fa-file-pdf"></i></a>
                         <?php if ($tel && $row['estado'] !== 'anulado') {
                             $p = obtener_pedido((int)$row['id']); ?>
                             <a href="<?php echo e(enlace_whatsapp($tel, mensaje_pedido($p))); ?>" target="_blank" rel="noopener" class="btn btn-whatsapp btn-sm" title="Enviar por WhatsApp"><i class="fab fa-whatsapp"></i></a>

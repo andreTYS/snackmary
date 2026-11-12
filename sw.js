@@ -3,12 +3,12 @@
  * - Páginas: siempre desde el servidor (los datos deben estar al día);
  *   si no hay internet se muestra offline.html.
  */
-const VERSION = 'snackmary-v4';
+const VERSION = 'snackmary-v5';
 const ESTATICOS = [
   '/offline.html',
   '/assets/css/styles.css',
   '/assets/css/tablet.css?v=4',
-  '/assets/js/jquery-3.6.0.min.js',
+  '/assets/js/jquery-3.7.1.min.js',
   '/assets/js/bootstrap.bundle.min.js',
   '/assets/js/all.min.js',
   '/assets/img/icon-192.png'

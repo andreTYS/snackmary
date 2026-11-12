@@ -185,7 +185,7 @@ $activa = !empty($negocio['carta_activa']);
         </div>
     </div>
 
-    <script src="assets/js/jquery-3.6.0.min.js"></script>
+    <script src="assets/js/jquery-3.7.1.min.js"></script>
     <script src="assets/js/bootstrap.bundle.min.js"></script>
     <script src="assets/js/sweetalert2.all.min.js"></script>
     <script src="assets/js/opciones.js?v=4"></script>

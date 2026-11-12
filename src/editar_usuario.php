@@ -14,19 +14,26 @@ if (es_post()) {
     $correo = texto($_POST['correo'] ?? '', 100);
     $user = texto($_POST['usuario'] ?? '', 20);
     $clave = (string)($_POST['clave'] ?? '');
-    if ($nombre === '' || $correo === '' || $user === '') {
+    if (modo_demo() && $id <= 4) {
+        $alert = alerta('warning', 'En el modo demo no se pueden editar los usuarios de prueba. Crea uno nuevo para probarlo.');
+    } elseif ($nombre === '' || $correo === '' || $user === '') {
         $alert = alerta('danger', 'Todos los campos son requeridos');
     } elseif (!filter_var($correo, FILTER_VALIDATE_EMAIL)) {
         $alert = alerta('danger', 'El correo no es válido');
-    } elseif ($clave !== '' && strlen($clave) < 6) {
-        $alert = alerta('danger', 'La nueva contraseña debe tener al menos 6 caracteres');
+    } elseif ($clave !== '' && modo_demo()) {
+        $alert = alerta('warning', 'En el modo demo no se pueden cambiar contraseñas');
+    } elseif ($clave !== '' && ($errorClave = validar_clave_nueva($clave, $user))) {
+        $alert = alerta('danger', $errorClave);
     } elseif (db_one('SELECT idusuario FROM usuario WHERE (correo = ? OR usuario = ?) AND idusuario <> ?', [$correo, $user, $id])) {
         $alert = alerta('warning', 'El correo o el usuario ya lo usa otra persona');
     } else {
         db_exec('UPDATE usuario SET nombre = ?, correo = ?, usuario = ? WHERE idusuario = ?', [$nombre, $correo, $user, $id]);
         if ($clave !== '') {
             db_exec('UPDATE usuario SET clave = ? WHERE idusuario = ?', [password_hash($clave, PASSWORD_DEFAULT), $id]);
+            // Al restablecer la clave de otra persona, se le pedirá cambiarla al ingresar si es débil
+            auditar('clave_restablecida', $user);
         }
+        auditar('usuario_editado', $user);
         flash('success', 'Usuario actualizado');
         redirigir('usuarios.php');
     }
@@ -57,7 +64,7 @@ include_once "includes/header.php";
                     </div>
                     <div class="form-group">
                         <label for="clave">Nueva contraseña <small class="text-muted">(dejar vacío para no cambiarla)</small></label>
-                        <input type="password" class="form-control" name="clave" id="clave" minlength="6" autocomplete="new-password">
+                        <input type="password" class="form-control" name="clave" id="clave" minlength="8" autocomplete="new-password">
                     </div>
                     <button type="submit" class="btn btn-primary"><i class="fas fa-user-edit"></i> Guardar</button>
                     <a href="usuarios.php" class="btn btn-danger">Atrás</a>

@@ -17,6 +17,8 @@ $menu = [
     ['clientes.php', 'fas fa-users', 'Clientes', 'clientes'],
     ['usuarios.php', 'fas fa-user', 'Usuarios', 'usuarios'],
     ['config.php', 'fas fa-cogs', 'Configuración', 'configuracion'],
+    ['auditoria.php', 'fas fa-shield-alt', 'Auditoría', 'admin'],
+    ['ayuda.php', 'fas fa-question-circle', 'Ayuda', null],
 ];
 $cajaActual = tiene_permiso('caja') || tiene_permiso('nueva_venta') ? caja_abierta() : null;
 ?>
@@ -54,16 +56,23 @@ $cajaActual = tiene_permiso('caja') || tiene_permiso('nueva_venta') ? caja_abier
                     </a>
                 </li>
             <?php } ?>
+            <li class="nav-item">
+                <a href="ayuda.php" class="btn btn-link nav-link text-white-50" title="Ayuda" aria-label="Ayuda"><i class="fas fa-question-circle"></i></a>
+            </li>
+            <li class="nav-item">
+                <a href="impresora.php" class="btn btn-link nav-link text-white-50" id="btnImpresora" title="Impresora"><i class="fas fa-print"></i></a>
+            </li>
             <li class="nav-item mr-1">
                 <button type="button" class="btn btn-link nav-link" id="btnPantallaCompleta" title="Pantalla completa"><i class="fas fa-expand"></i></button>
             </li>
             <li class="nav-item dropdown">
                 <a class="nav-link dropdown-toggle" id="userDropdown" href="#" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"><i class="fas fa-user fa-fw"></i> <?php echo e($_SESSION['nombre'] ?? ''); ?></a>
                 <div class="dropdown-menu dropdown-menu-right" aria-labelledby="userDropdown">
-                    <a class="dropdown-item" href="#" data-toggle="modal" data-target="#nuevo_pass">Cambiar contraseña</a>
+                    <a class="dropdown-item" href="perfil.php">Cambiar contraseña</a>
+                    <a class="dropdown-item" href="impresora.php">Impresora de esta tablet</a>
                     <a class="dropdown-item" href="../carta.php" target="_blank">Ver carta pública</a>
                     <div class="dropdown-divider"></div>
-                    <a class="dropdown-item" href="salir.php">Cerrar Sesión</a>
+                    <a class="dropdown-item" href="salir.php?t=<?php echo e(csrf_token()); ?>">Cerrar Sesión</a>
                 </div>
             </li>
         </ul>
@@ -87,9 +96,9 @@ $cajaActual = tiene_permiso('caja') || tiene_permiso('nueva_venta') ? caja_abier
         <div id="layoutSidenav_content">
             <main>
                 <div class="container-fluid mt-2">
-                    <?php if (!empty($_SESSION['clave_insegura'])) { ?>
-                        <div class="alert alert-danger">
-                            <i class="fas fa-exclamation-triangle"></i> Estás usando la contraseña por defecto. Cámbiala ahora desde el menú de usuario &rarr; <b>Cambiar contraseña</b>.
+                    <?php if (modo_demo()) { ?>
+                        <div class="alert alert-info py-2 no-imprimir">
+                            <i class="fas fa-flask"></i> <b>Modo demo:</b> puedes probar todo con confianza; los datos se reinician cada noche.
                         </div>
                     <?php } ?>
                     <?php echo flash(); ?>
